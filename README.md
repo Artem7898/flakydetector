@@ -125,7 +125,7 @@ flowchart LR
 ### 1. Клонирование и настройка бэкенда
 
 ```bash
-git clone https://github.com/yourorg/flakydetector.git
+git clone https://github.com/Artem7898/flakydetector
 cd flakydetector
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
