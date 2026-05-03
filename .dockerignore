@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+data/raw/*
+data/processed/*
+node_modules
+dashboard_frontend
+.env.local
+docs
+*.md
+LICENSE
