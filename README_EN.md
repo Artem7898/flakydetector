@@ -125,7 +125,7 @@ flowchart LR
 ### 1. Clone & Setup Backend
 
 ```bash
-git clone https://github.com/yourorg/flakydetector.git
+git clone https://github.com/Artem7898/flakydetector
 cd flakydetector
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
@@ -189,11 +189,11 @@ If you use FlakyDetector in your research, please cite:
 
 ## 👨‍💻 Author
 
-**Artem Alimpiev** — Senior Python Developer
+**Artem Alimpiev** —  Python Developer
 
-- 🐙 GitHub: [@your-github](https://github.com/your-github)
-- 💼 LinkedIn: [linkedin.com/in/your-profile](https://linkedin.com/in/your-profile)
-- 📧 Email: your.email@example.com
+- 🐙 GitHub: https://github.com/Artem7898
+- 💼 LinkedIn: https://www.linkedin.com/in/artem-alimpiev/
+- 📧 Email: alimpievne@gmail.com
 
 ---
 
