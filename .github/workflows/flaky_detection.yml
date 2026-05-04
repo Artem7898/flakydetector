@@ -1,0 +1,36 @@
+name: Flaky Test Analysis
+
+# Запускается при любом Push в PR (но не блокирует главную ветку сразу)
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  # Опционально: позволяет запускать анализ вручную кнопкой в GitHub
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Scan for Flaky Patterns
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Клонируем репозиторий
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Устанавливаем uv (в 100 раз быстрее pip)
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      # 3. Устанавливаем зависимости нашего проекта (только ядро, без фронтенда)
+      - name: Install Python dependencies
+        run: uv sync --no-dev --no-install-project
+        # Заметь: мы не ставим -e ".[dev]", нам нужен только минимальный набор для импорта
+
+      # 4. Запускаем сканирование папки с тестами
+      # Флаг --fail-on-critical заставит шаг упасть, если анализатор найдет критические проблемы
+      - name: Run FlakyDetector
+        run: uv run python scripts/scan_folder.py ./tests/flaky_samples --fail-on-critical

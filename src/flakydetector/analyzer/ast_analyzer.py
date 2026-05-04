@@ -1,4 +1,4 @@
-"""AST-based flaky pattern detection in Python test code."""
+"""AST-based flaky pattern detection and Test Smells analysis in Python test code."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class PatternMatch:
 
 
 class FlakyPatternVisitor(ast.NodeVisitor):
-    """AST visitor that detects flaky test patterns."""
+    """AST visitor that detects flaky test patterns and test smells."""
 
     def __init__(self, source_lines: list[str], file_path: str) -> None:
         self._source_lines = source_lines
@@ -101,6 +101,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         self._current_function = node.name
 
         self._check_async_patterns(node)
+        self._check_test_smells(node)  # Scientific expansion
         self.generic_visit(node)
         self._current_function = prev_func
 
@@ -116,6 +117,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         self._check_resource_leak_patterns(node)
         self._check_datetime_patterns(node)
         self._check_floating_point_patterns(node)
+        self._check_test_smells(node)  # Scientific expansion
 
         self.generic_visit(node)
         self._current_function = prev_func
@@ -135,7 +137,11 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                         confidence=0.75,
                         metadata={"call": func_name},
                     )
-                elif func_name in ("gather", "asyncio.gather", "Task", "asyncio.Task", "create_task", "asyncio.create_task"):
+                elif func_name in (
+                    "gather", "asyncio.gather",
+                    "Task", "asyncio.Task",
+                    "create_task", "asyncio.create_task"
+                ):
                     self._add_match(
                         pattern_type="concurrent_tasks",
                         category=FlakyCategory.ASYNC_RACE_CONDITION,
@@ -183,6 +189,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
 
         if global_names:
             for child in ast.walk(node):
+                # Handle both Assign (x = 1) and AugAssign (x += 1)
                 if isinstance(child, (ast.Assign, ast.AugAssign)):
                     target = child.targets[0] if isinstance(child, ast.Assign) else child.target
 
@@ -199,6 +206,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
 
     def _check_network_patterns(self, node: ast.FunctionDef) -> None:
         """Check for network-dependent patterns."""
+        # Check decorators FIRST to determine mocking context
         is_mocked = False
         if hasattr(node, 'decorator_list') and node.decorator_list:
             for dec in node.decorator_list:
@@ -322,8 +330,35 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                                     confidence=0.95,
                                 )
 
+    def _check_test_smells(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        """Deep expansion: Detect Test Smells like High Cyclomatic Complexity."""
+        complexity = 1  # Base complexity
+
+        for child in ast.walk(node):
+            if isinstance(child, (ast.If, ast.While, ast.ExceptHandler, ast.With)):
+                complexity += 1
+            elif isinstance(child, ast.For):
+                complexity += 1
+            elif isinstance(child, ast.BoolOp):
+                # and/or operators add branches
+                complexity += len(child.values) - 1
+            elif isinstance(child, ast.Assert):
+                complexity += 1
+
+        # Scientific threshold: Tests with complexity > 10 are highly prone to flakiness
+        if complexity > 10:
+            self._add_match(
+                pattern_type="high_complexity",
+                category=FlakyCategory.UNKNOWN,
+                severity=FlakySeverity.MEDIUM,
+                description=f"High cyclomatic complexity ({complexity}). Complex tests often hide state dependencies.",
+                node=node,
+                confidence=0.7,
+                metadata={"complexity_score": complexity},
+            )
+
     def _get_call_name(self, node: ast.Call) -> str:
-        """Extract full call name from Call node."""
+        """Extract full call name from Call node (e.g., 'requests.get')."""
         if isinstance(node.func, ast.Name):
             return node.func.id
         if isinstance(node.func, ast.Attribute):

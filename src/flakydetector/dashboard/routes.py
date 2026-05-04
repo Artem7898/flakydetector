@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
+import zipfile
+import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 
@@ -121,94 +123,75 @@ async def analyze_code(
         background_tasks: BackgroundTasks,
 ) -> AnalysisResponse:
     """Analyze code for flaky test patterns."""
-    analysis_id = uuid4()
+    if not request.file_content:
+        raise HTTPException(status_code=400, detail="file_content is required")
 
-    if not request.file_content and not request.repository_url:
-        raise HTTPException(
-            status_code=400,
-            detail="Either file_content or repository_url must be provided",
+    file_path = request.file_path or "test_sample.py"
+
+    # 1. AST Analysis
+    ast_patterns = _ast_analyzer.analyze_source(request.file_content, file_path)
+
+    # 2. Log Analysis (if provided)
+    log_anomalies = []
+    if request.log_content:
+        log_anomalies = _log_analyzer.analyze_log(request.log_content)
+
+    # 3. ML Classification or Heuristic
+    is_flaky = False
+    flaky_probability = 0.0
+    category = FlakyCategory.UNKNOWN
+
+    if request.use_ml_classifier and ast_patterns:
+        features = _feature_extractor.extract_from_patterns(
+            test_name=file_path,
+            file_path=file_path,
+            ast_patterns=ast_patterns,
+            log_anomalies=log_anomalies,
         )
 
-    all_results: list[TestAnalysisResult] = []
-    total_patterns = 0
+        if _classifier.is_trained:
+            is_flaky, flaky_probability = _classifier.predict_single(features.features)
+        else:
+            flaky_probability = min(1.0, len(ast_patterns) * 0.3 + len(log_anomalies) * 0.4)
+            is_flaky = flaky_probability >= 0.5
 
-    if request.file_content:
-        file_path = request.file_path or "test_file.py"
+        if ast_patterns:
+            category_counts: dict[FlakyCategory, int] = {}
+            for p in ast_patterns:
+                category_counts[p.category] = category_counts.get(p.category, 0) + 1
+            category = max(category_counts, key=category_counts.get)  # type: ignore
 
-        # AST analysis
-        ast_patterns = _ast_analyzer.analyze_source(request.file_content, file_path)
-        total_patterns += len(ast_patterns)
-
-        # Log analysis if provided
-        log_anomalies = []
-        if request.log_content:
-            log_anomalies = _log_analyzer.analyze_log(request.log_content)
-            total_patterns += len(log_anomalies)
-
-        # ML classification if enabled
-        is_flaky = False
-        flaky_probability = 0.0
-        category = FlakyCategory.UNKNOWN
-
-        if request.use_ml_classifier and ast_patterns:
-            features = _feature_extractor.extract_from_patterns(
-                test_name=file_path,
-                file_path=file_path,
-                ast_patterns=ast_patterns,
-                log_anomalies=log_anomalies,
-            )
-
-            # Use heuristic if model not trained
-            if _classifier.is_trained:
-                is_flaky, flaky_probability = _classifier.predict_single(features.features)
-            else:
-                flaky_probability = min(1.0, len(ast_patterns) * 0.3 + len(log_anomalies) * 0.4)
-                is_flaky = flaky_probability >= 0.5
-
-            # Determine primary category
-            if ast_patterns:
-                category_counts: dict[FlakyCategory, int] = {}
-                for p in ast_patterns:
-                    category_counts[p.category] = category_counts.get(p.category, 0) + 1
-                category = max(category_counts, key=category_counts.get)  # type: ignore[arg-type]
-
-        # Build pattern info
-        pattern_infos = [
-            PatternInfo(
-                pattern_type=p.pattern_type,
-                category=p.category.value,
-                severity=p.severity.value,
-                description=p.description,
-                location=p.location.location_string,
-                code_snippet=p.code_snippet,
-                confidence=p.confidence,
-            )
-            for p in ast_patterns
-        ]
-
-        recommendations = _get_recommendations(category, ast_patterns)
-
-        all_results.append(
-            TestAnalysisResult(
-                test_name=file_path,
-                file_path=file_path,
-                is_flaky=is_flaky,
-                flaky_probability=flaky_probability,
-                patterns=pattern_infos,
-                recommendations=recommendations,
-            )
+    # 4. Строгое формирование ответа по контракту Frontend
+    pattern_infos = [
+        PatternInfo(
+            pattern_type=p.pattern_type,
+            # ВАЖНО: Frontend ожидает строчное значение ('low', 'medium') для CSS классов
+            severity=p.severity.value,
+            description=p.description,
+            code_snippet=p.code_snippet,
         )
+        for p in ast_patterns
+    ]
+
+    recommendations = _get_recommendations(category, ast_patterns)
+
+    test_result = TestAnalysisResult(
+        test_name=file_path,
+        file_path=file_path,
+        is_flaky=is_flaky,
+        flaky_probability=flaky_probability,
+        patterns=pattern_infos,
+        recommendations=recommendations,
+    )
 
     return AnalysisResponse(
-        analysis_id=analysis_id,
-        repository_url=request.repository_url,
         total_files_analyzed=1,
-        total_patterns_found=total_patterns,
-        flaky_tests=all_results,
+        total_patterns_found=len(ast_patterns) + len(log_anomalies),
+        flaky_tests=[test_result],
         summary={
-            "flaky_rate": sum(1 for r in all_results if r.is_flaky) / max(1, len(all_results)),
-            "avg_flaky_probability": sum(r.flaky_probability for r in all_results) / max(1, len(all_results)),
-        },
+            "flaky_rate": 1.0 if is_flaky else 0.0,
+            "avg_flaky_probability": flaky_probability,
+        }
     )
 
 
@@ -248,6 +231,73 @@ async def get_feature_importance() -> FeatureImportanceResponse:
     ]
 
     return FeatureImportanceResponse(features=features, model_version="0.1.0")
+
+
+@router.post("/analyze/directory", response_model=AnalysisResponse)
+async def analyze_directory_archive(
+        file: UploadFile = File(..., description="ZIP archive of Python test files"),
+) -> AnalysisResponse:
+    """Scan an entire directory (uploaded as ZIP) for flaky patterns."""
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip archives are supported")
+
+    all_results: list[TestAnalysisResult] = []
+    total_patterns = 0
+
+    # Безопасная распаковка во временную директорию
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / "repo"
+        tmp_path.mkdir()
+
+        with zipfile.ZipFile(file.file, 'r') as zip_ref:
+            zip_ref.extractall(tmp_path)
+
+        # Рекурсивный поиск .py файлов
+        py_files = list(tmp_path.rglob("*.py"))
+
+        for py_file in py_files:
+            try:
+                source = py_file.read_text(encoding="utf-8", errors="ignore")
+                ast_patterns = _ast_analyzer.analyze_source(source, str(py_file.relative_to(tmp_path)))
+
+                if ast_patterns:
+                    total_patterns += len(ast_patterns)
+                    is_flaky = len(ast_patterns) > 0  # Базовая эвристика
+
+                    all_results.append(
+                        TestAnalysisResult(
+                            test_name=py_file.stem,
+                            file_path=str(py_file.relative_to(tmp_path)),
+                            is_flaky=is_flaky,
+                            flaky_probability=min(1.0, len(ast_patterns) * 0.3),
+                            patterns=[
+                                PatternInfo(
+                                    pattern_type=p.pattern_type,
+                                    category=p.category.value,
+                                    severity=p.severity.value,
+                                    description=p.description,
+                                    location=p.location.location_string,
+                                    code_snippet=p.code_snippet,
+                                    confidence=p.confidence,
+                                    fix=p.fix_suggestion  # Наше новое поле!
+                                ) for p in ast_patterns
+                            ]
+                        )
+                    )
+            except Exception:
+                continue
+
+    return AnalysisResponse(
+        analysis_id=uuid4(),
+        repository_url=None,
+        total_files_analyzed=len(py_files),
+        total_patterns_found=total_patterns,
+        flaky_tests=all_results,
+        summary={
+            "scanned_files": len(py_files),
+            "affected_files": len(all_results),
+        }
+    )
 
 
 @router.get("/stats/{repo_url:path}", response_model=RepositoryStatsResponse)

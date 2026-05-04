@@ -1,4 +1,4 @@
-"""API request/response models."""
+"""API request/response models strictly aligned with Frontend contract."""
 
 from __future__ import annotations
 
@@ -10,54 +10,30 @@ from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
-    """Health check response."""
-
-    status: str = Field(..., description="Application status")
-    version: str = Field(..., description="Application version")
+    status: str = "healthy"
+    version: str = "0.1.0"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
 class AnalysisRequest(BaseModel):
-    """Request to analyze a repository or file."""
-
-    repository_url: str | None = Field(
-        None,
-        description="GitHub repository URL",
-        examples=["https://github.com/owner/repo"],
-    )
-    file_content: str | None = Field(
-        None,
-        description="Direct file content to analyze",
-    )
-    file_path: str | None = Field(
-        None,
-        description="Virtual file path for direct content",
-    )
-    log_content: str | None = Field(
-        None,
-        description="CI log content to analyze",
-    )
-    use_ml_classifier: bool = Field(
-        default=True,
-        description="Whether to use ML classification",
-    )
+    """Expected payload from React UI."""
+    file_content: str | None = Field(None, description="Direct Python code string")
+    file_path: str | None = Field(None, description="Virtual filename for context")
+    log_content: str | None = Field(None, description="CI logs (optional)")
+    use_ml_classifier: bool = Field(default=True)
 
 
 class PatternInfo(BaseModel):
-    """Information about a detected pattern."""
-
+    """Strict mapping for React pattern card."""
     pattern_type: str
-    category: str
-    severity: str
+    severity: str        # Ожидает 'low', 'medium', 'high', 'critical'
     description: str
-    location: str
     code_snippet: str
-    confidence: float
+    fix: str = Field(default="", description="How to fix this")
 
 
 class TestAnalysisResult(BaseModel):
-    """Analysis result for a single test."""
-
+    """Strict mapping for React metrics and patterns."""
     test_name: str
     file_path: str
     is_flaky: bool
@@ -67,14 +43,13 @@ class TestAnalysisResult(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
-    """Response from analysis endpoint."""
-
-    analysis_id: UUID
-    repository_url: str | None
-    total_files_analyzed: int
-    total_patterns_found: int
-    flaky_tests: list[TestAnalysisResult]
-    summary: dict[str, Any]
+    """Root response mapped to React state."""
+    analysis_id: UUID = Field(default_factory=lambda: UUID("00000000-0000-0000-0000-000000000000"))
+    repository_url: str | None = None
+    total_files_analyzed: int = 1
+    total_patterns_found: int = 0
+    flaky_tests: list[TestAnalysisResult] = Field(default_factory=list)
+    summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class FeatureImportanceItem(BaseModel):
@@ -101,3 +76,4 @@ class RepositoryStatsResponse(BaseModel):
     severity_distribution: dict[str, int]
     top_patterns: list[dict[str, Any]]
     analysis_timestamp: datetime
+

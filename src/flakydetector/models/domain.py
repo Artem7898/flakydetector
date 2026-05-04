@@ -81,13 +81,14 @@ class CodeLocation(BaseModel):
 class ASTPattern(BaseModel):
     """Detected AST pattern indicating potential flakiness."""
 
-    pattern_type: str = Field(..., description="Pattern identifier")
+    pattern_type: str
     category: FlakyCategory
     severity: FlakySeverity
     description: str
     location: CodeLocation
-    code_snippet: str = Field(..., description="Relevant code fragment")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence")
+    code_snippet: str
+    confidence: float
+    fix_suggestion: str = Field(default="", description="Actionable steps to fix the pattern")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
