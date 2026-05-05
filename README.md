@@ -213,7 +213,7 @@ uv run pytest tests/unit/ -v
   author = {Research Team},
   title = {FlakyDetector: Scientific-grade AST & ML Flaky Test Detection},
   year = {2026},
-  url = {https://github.com/yourorg/flakydetector}
+  url = {https://github.com/Artem7898/flakydetector}
 }
 ```
 
