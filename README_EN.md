@@ -97,7 +97,7 @@ flowchart TB
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourorg/flakydetector.git
+git clone https://github.com/Artem7898/flakydetector
 cd flakydetector
 
 # 2. Install uv (modern package manager) and dependencies
