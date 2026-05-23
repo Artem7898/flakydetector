@@ -176,6 +176,7 @@ The system converts source code into a mathematical representation:
 | **AST Features** | 16 | Counters for specific anti-patterns (e.g., `ast_time_sleep: 1.0`). |
 | **Category Features** | 9 | Aggregate scores for root causes (Timing, State, Network). |
 | **Test Smells** | 1 | Cyclomatic Complexity of the test function. |
+| **Fixture Analysis (NEW)** | 5 |  Fixture analysis: scope="session", no yield, return of mutable literals.|
 | **Derived Features** | 3 | Mathematical ratios: `ast_to_log_ratio`, `pattern_diversity`. |
 | **Confidence Scores** | 8 | Maximum and average detector certainties. |
 
