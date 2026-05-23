@@ -208,3 +208,15 @@ class LogAnomaly(BaseModel):
     log_entries: list[LogEntry] = Field(default_factory=list)
     confidence: float = Field(..., ge=0.0, le=1.0)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class FixtureInfo(BaseModel):
+    """Extracted metadata from a pytest fixture."""
+
+    fixture_name: str
+    scope: str = Field(default="function", description="pytest scope (function, class, module, session)")
+    has_yield: bool = Field(default=False, description="True if fixture uses 'yield' (has teardown)")
+    has_autouse: bool = Field(default=False, description="True if fixture has autouse=True")
+    returns_mutable_literal: bool = Field(default=False, description="True if returns [], {} or set()")
+    uses_finalizer: bool = Field(default=False, description="True if uses context.addfinalizer")
+    line: int = Field(default=0)

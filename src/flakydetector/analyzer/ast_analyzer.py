@@ -12,7 +12,7 @@ from flakydetector.models.domain import (
     ASTPattern,
     CodeLocation,
     FlakyCategory,
-    FlakySeverity,
+    FlakySeverity, FixtureInfo,
 )
 from flakydetector.utils.logger import get_logger
 
@@ -402,23 +402,26 @@ class ASTAnalyzer:
             logger.error("analysis_error", path=str(file_path), error=str(e))
             return []
 
-    def analyze_source(self, source: str, file_path: str) -> list[ASTPattern]:
-        """Analyze source code string for flaky patterns."""
+
+    def analyze_source(self, source: str, file_path: str) -> tuple[list[ASTPattern], list[FixtureInfo]]:
+        """Analyze source code string for flaky patterns and fixtures."""
+        from flakydetector.analyzer.fixture_parser import FixtureParser  # Lazy import
+
         source_lines = source.splitlines()
 
         try:
             tree = ast.parse(source, filename=file_path)
         except SyntaxError as e:
             logger.warning("syntax_error", path=file_path, error=str(e))
-            return []
+            return [], []
 
+        # 1. Запускаем старый парсер паттернов
         visitor = FlakyPatternVisitor(source_lines, file_path)
         visitor.visit(tree)
 
         patterns = []
         for match in visitor.matches:
             self._pattern_stats[match.pattern_type] += 1
-
             patterns.append(
                 ASTPattern(
                     pattern_type=match.pattern_type,
@@ -438,13 +441,18 @@ class ASTAnalyzer:
                 )
             )
 
+        # 2. Запускаем НОВЫЙ парсер фикстур
+        fixture_parser = FixtureParser()
+        fixtures = fixture_parser.parse_source(source, file_path)
+
         logger.info(
             "analysis_complete",
             path=file_path,
             patterns_found=len(patterns),
+            fixtures_found=len(fixtures),
         )
 
-        return patterns
+        return patterns, fixtures
 
     def analyze_directory(
         self,

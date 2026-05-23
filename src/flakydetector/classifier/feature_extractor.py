@@ -18,7 +18,7 @@ from flakydetector.models.domain import (
 
 # Feature names for model interpretability
 FEATURE_NAMES: list[str] = [
-    # AST-based features
+    # AST-based features (11)
     "ast_async_sleep",
     "ast_concurrent_tasks",
     "ast_time_sleep",
@@ -30,13 +30,15 @@ FEATURE_NAMES: list[str] = [
     "ast_datetime_now",
     "ast_float_equality",
     "ast_float_comparison",
+
+    # AST summary features (5)
     "ast_total_patterns",
     "ast_max_confidence",
     "ast_avg_confidence",
     "ast_high_severity_count",
     "ast_critical_severity_count",
 
-    # Log-based features
+    # Log-based features (7)
     "log_timeout",
     "log_connection_error",
     "log_port_in_use",
@@ -44,10 +46,12 @@ FEATURE_NAMES: list[str] = [
     "log_resource_leak",
     "log_database_error",
     "log_flaky_retry",
+
+    # Log summary features (2)
     "log_total_anomalies",
     "log_max_confidence",
 
-    # Category indicators
+    # Category indicators (9)
     "category_async_race_condition",
     "category_timing_dependency",
     "category_global_state",
@@ -58,10 +62,17 @@ FEATURE_NAMES: list[str] = [
     "category_floating_point",
     "category_datetime_dependency",
 
-    # Derived features
+    # Derived features (3)
     "ast_to_log_ratio",
     "high_confidence_pattern_count",
     "pattern_diversity",
+
+    # Fixture-based features - Sprint 1 (5)
+    "has_session_or_module_fixture",
+    "has_yield_in_fixture",
+    "fixture_returns_mutable",
+    "fixture_has_autouse",
+    "test_uses_fixtures",
 ]
 
 
@@ -126,76 +137,42 @@ class FeatureExtractor:
         self._log_analyzer = log_analyzer or LogAnalyzer()
         self._n_features = len(FEATURE_NAMES)
 
+
     def extract_from_patterns(
             self,
             test_name: str,
             file_path: str,
             ast_patterns: list[ASTPattern],
             log_anomalies: list[LogAnomaly],
+            fixtures: list[Any] | None = None,  # Добавили fixtures
     ) -> TestFeatures:
-        """Extract features from pre-analyzed patterns."""
+                # --- FIXTURE FEATURES (Sprint 1) ---
+        fixtures = fixtures or []
+
+
         features = np.zeros(self._n_features, dtype=np.float64)
-        feature_dict = {name: 0.0 for name in FEATURE_NAMES}
+        feature_dict: dict[str, float] = {}
 
-        # AST pattern counts
-        for pattern in ast_patterns:
-            idx = self.AST_PATTERN_MAP.get(pattern.pattern_type)
-            if idx is not None:
-                features[idx] += 1
-                feature_dict[FEATURE_NAMES[idx]] += 1
+        features[37] = 1.0 if any(f.scope in ("module", "session") for f in fixtures) else 0.0
+        feature_dict["has_session_or_module_fixture"] = features[37]
 
-            # Track categories
-            cat_idx = self.CATEGORY_MAP.get(pattern.category)
-            if cat_idx is not None:
-                features[cat_idx] += 1
-                feature_dict[FEATURE_NAMES[cat_idx]] += 1
+        features[38] = 1.0 if any(f.has_yield for f in fixtures) else 0.0
+        feature_dict["has_yield_in_fixture"] = features[38]
 
-        # AST summary features
-        features[11] = len(ast_patterns)
-        feature_dict["ast_total_patterns"] = len(ast_patterns)
+        features[39] = 1.0 if any(f.returns_mutable_literal for f in fixtures) else 0.0
+        feature_dict["fixture_returns_mutable"] = features[39]
 
-        if ast_patterns:
-            confidences = [p.confidence for p in ast_patterns]
-            features[12] = max(confidences)
-            features[13] = np.mean(confidences)
-            feature_dict["ast_max_confidence"] = features[12]
-            feature_dict["ast_avg_confidence"] = features[13]
+        features[40] = 1.0 if any(f.has_autouse for f in fixtures) else 0.0
+        feature_dict["fixture_has_autouse"] = features[40]
 
-            features[14] = sum(1 for p in ast_patterns if p.severity.value == "high")
-            features[15] = sum(1 for p in ast_patterns if p.severity.value == "critical")
-            feature_dict["ast_high_severity_count"] = features[14]
-            feature_dict["ast_critical_severity_count"] = features[15]
-
-        # Log anomaly counts
-        for anomaly in log_anomalies:
-            idx = self.LOG_ANOMALY_MAP.get(anomaly.anomaly_type)
-            if idx is not None:
-                features[idx] += 1
-                feature_dict[FEATURE_NAMES[idx]] += 1
-
-        # Log summary features
-        features[23] = len(log_anomalies)
-        feature_dict["log_total_anomalies"] = len(log_anomalies)
-
-        if log_anomalies:
-            confidences = [a.confidence for a in log_anomalies]
-            features[24] = max(confidences)
-            feature_dict["log_max_confidence"] = features[24]
-
-        # Derived features
-        ast_total = features[11]
-        log_total = features[23]
-        features[34] = ast_total / (log_total + 1)
-        feature_dict["ast_to_log_ratio"] = features[34]
-
-        all_confidences = [p.confidence for p in ast_patterns] + [a.confidence for a in log_anomalies]
-        features[35] = sum(1 for c in all_confidences if c >= 0.8)
-        feature_dict["high_confidence_pattern_count"] = features[35]
-
-        # Pattern diversity (unique categories)
-        categories = set(p.category for p in ast_patterns)
-        features[36] = len(categories)
-        feature_dict["pattern_diversity"] = features[36]
+        # Проверяем, использует ли сам тест (не фикстура) аргументы-фикстуры
+        # Это упрощенная проверка: если есть фикстуры в файле, считаем что тест их использует
+        features[41] = sum(
+            1.0 for f in fixtures
+            if not f.has_yield and f.scope != "function"
+                )
+        feature_dict["test_uses_fixtures"] = features[41]
+        feature_dict["test_uses_fixtures"] = features[41]
 
         return TestFeatures(
             test_name=test_name,
