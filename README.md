@@ -176,6 +176,7 @@ uv run python scripts/scan_folder.py ./my_project/tests/
 | **AST Features** | 16 | Счётчики специфических антипаттернов (например, `ast_time_sleep: 1.0`). |
 | **Category Features** | 9 | Агрегированные баллы корневых причин (Timing, State, Network). |
 | **Test Smells** | 1 | Cyclomatic Complexity — цикломатическая сложность тестовой функции. |
+| **Fixture Analysis (НОВОЕ)** | 5	Анализ фикстур: scope="session", отсутствие yield, возврат мутабельных литералов. |
 | **Derived Features** | 3 | Математические отношения: `ast_to_log_ratio`, `pattern_diversity`. |
 | **Confidence Scores** | 8 | Максимальные и средние уверенности детектора. |
 
