@@ -135,7 +135,18 @@ class FlakyClassifier:
         if not path.exists():
             raise FileNotFoundError(f"Model file not found: {path}")
 
-        self._model = CatBoostClassifier()
+        self._model = CatBoostClassifier(
+            iterations=self._iterations,
+            depth=self._depth,
+            learning_rate=self._learning_rate,
+            loss_function="Logloss",
+            eval_metric="AUC",
+            random_seed=42,
+            verbose=verbose,
+            early_stopping_rounds=None,  # ОТКЛЮЧАЕМ ЗАЩИТУ
+            l2_leaf_reg=1.0,
+            min_data_in_leaf=1,  # РАЗРЕШАЕМ ДЕРЕВЬЯМ ИДТИ НА 1 ЭЛЕМЕНТ
+        )
         self._model.load_model(str(path))
         self._is_trained = True
         logger.info("model_loaded", path=str(path))

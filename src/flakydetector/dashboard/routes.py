@@ -36,19 +36,21 @@ _log_analyzer = LogAnalyzer()
 _feature_extractor = FeatureExtractor(_ast_analyzer, _log_analyzer)
 _classifier = FlakyClassifier()
 
-from pathlib import Path
-_MODEL_PATH = Path("data/models/flaky_v1.cbm")
+# Safe model loading with dimension mismatch protection
+_MODEL_PATH = Path("data/models/flaky_v2_42d.cbm")
 if _MODEL_PATH.exists():
-    _classifier.load_model(_MODEL_PATH)
+    try:
+        _classifier.load_model(_MODEL_PATH)
+    except Exception:
+        logger.warning("model_dimension_mismatch", msg="Old model loaded, switching to heuristic mode. Run train_model.py!")
+        _classifier = FlakyClassifier()
 
 
 def _get_recommendations(
-        category: FlakyCategory,
-        patterns: list[Any],
+    category: FlakyCategory,
+    patterns: list[Any],
 ) -> list[str]:
     """Generate fix recommendations based on detected patterns."""
-    recommendations: list[str] = []
-
     recommendation_map: dict[FlakyCategory, list[str]] = {
         FlakyCategory.ASYNC_RACE_CONDITION: [
             "Use asyncio.Event or asyncio.Condition for synchronization",
@@ -109,18 +111,17 @@ def _get_recommendations(
 
     recommendations = recommendation_map.get(category, [])
 
-    # Add pattern-specific recommendations
     for pattern in patterns:
         if pattern.pattern_type == "network_call" and "mock" not in str(pattern.code_snippet).lower():
             recommendations.append(f"Add @patch decorator for {pattern.metadata.get('network_call', 'network call')}")
 
-    return recommendations[:5]  # Limit to top 5
+    return recommendations[:5]
 
 
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_code(
-        request: AnalysisRequest,
-        background_tasks: BackgroundTasks,
+    request: AnalysisRequest,
+    background_tasks: BackgroundTasks,
 ) -> AnalysisResponse:
     """Analyze code for flaky test patterns."""
     if not request.file_content:
@@ -128,8 +129,8 @@ async def analyze_code(
 
     file_path = request.file_path or "test_sample.py"
 
-    # 1. AST Analysis
-    ast_patterns = _ast_analyzer.analyze_source(request.file_content, file_path)
+    # 1. AST & Fixture Analysis
+    ast_patterns, fixtures = _ast_analyzer.analyze_source(request.file_content, file_path)
 
     # 2. Log Analysis (if provided)
     log_anomalies = []
@@ -142,11 +143,13 @@ async def analyze_code(
     category = FlakyCategory.UNKNOWN
 
     if request.use_ml_classifier and ast_patterns:
+        # ПЕРЕДАЕМ fixtures В ЭКСТРАКТОР ЗДЕСЬ
         features = _feature_extractor.extract_from_patterns(
             test_name=file_path,
             file_path=file_path,
             ast_patterns=ast_patterns,
             log_anomalies=log_anomalies,
+            fixtures=fixtures
         )
 
         if _classifier.is_trained:
@@ -161,11 +164,10 @@ async def analyze_code(
                 category_counts[p.category] = category_counts.get(p.category, 0) + 1
             category = max(category_counts, key=category_counts.get)  # type: ignore
 
-    # 4. Строгое формирование ответа по контракту Frontend
+    # 4. Format response for Frontend
     pattern_infos = [
         PatternInfo(
             pattern_type=p.pattern_type,
-            # ВАЖНО: Frontend ожидает строчное значение ('low', 'medium') для CSS классов
             severity=p.severity.value,
             description=p.description,
             code_snippet=p.code_snippet,
@@ -197,8 +199,8 @@ async def analyze_code(
 
 @router.post("/analyze/file")
 async def analyze_uploaded_file(
-        file: UploadFile = File(...),
-        use_ml: bool = True,
+    file: UploadFile = File(...),
+    use_ml: bool = True,
 ) -> AnalysisResponse:
     """Analyze an uploaded Python file."""
     if not file.filename or not file.filename.endswith(".py"):
@@ -206,23 +208,20 @@ async def analyze_uploaded_file(
 
     content = await file.read()
 
-    request = AnalysisRequest(
+    req = AnalysisRequest(
         file_content=content.decode("utf-8", errors="replace"),
         file_path=file.filename,
         use_ml_classifier=use_ml,
     )
 
-    return await analyze_code(request, BackgroundTasks())
+    return await analyze_code(req, BackgroundTasks())
 
 
 @router.get("/features/importance", response_model=FeatureImportanceResponse)
 async def get_feature_importance() -> FeatureImportanceResponse:
     """Get model feature importance."""
     if not _classifier.is_trained:
-        raise HTTPException(
-            status_code=503,
-            detail="Model not trained. Train the model first.",
-        )
+        raise HTTPException(status_code=503, detail="Model not trained. Train the model first.")
 
     importance = _classifier.get_feature_importance()
     features = [
@@ -235,7 +234,7 @@ async def get_feature_importance() -> FeatureImportanceResponse:
 
 @router.post("/analyze/directory", response_model=AnalysisResponse)
 async def analyze_directory_archive(
-        file: UploadFile = File(..., description="ZIP archive of Python test files"),
+    file: UploadFile = File(..., description="ZIP archive of Python test files"),
 ) -> AnalysisResponse:
     """Scan an entire directory (uploaded as ZIP) for flaky patterns."""
     if not file.filename.endswith(".zip"):
@@ -244,7 +243,6 @@ async def analyze_directory_archive(
     all_results: list[TestAnalysisResult] = []
     total_patterns = 0
 
-    # Безопасная распаковка во временную директорию
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "repo"
         tmp_path.mkdir()
@@ -252,17 +250,17 @@ async def analyze_directory_archive(
         with zipfile.ZipFile(file.file, 'r') as zip_ref:
             zip_ref.extractall(tmp_path)
 
-        # Рекурсивный поиск .py файлов
         py_files = list(tmp_path.rglob("*.py"))
 
         for py_file in py_files:
             try:
                 source = py_file.read_text(encoding="utf-8", errors="ignore")
-                ast_patterns = _ast_analyzer.analyze_source(source, str(py_file.relative_to(tmp_path)))
+                # ВНИМАНИЕ: unpack tuple here
+                ast_patterns, _ = _ast_analyzer.analyze_source(source, str(py_file.relative_to(tmp_path)))
 
                 if ast_patterns:
                     total_patterns += len(ast_patterns)
-                    is_flaky = len(ast_patterns) > 0  # Базовая эвристика
+                    is_flaky = len(ast_patterns) > 0
 
                     all_results.append(
                         TestAnalysisResult(
@@ -279,7 +277,6 @@ async def analyze_directory_archive(
                                     location=p.location.location_string,
                                     code_snippet=p.code_snippet,
                                     confidence=p.confidence,
-                                    fix=p.fix_suggestion  # Наше новое поле!
                                 ) for p in ast_patterns
                             ]
                         )
@@ -303,7 +300,6 @@ async def analyze_directory_archive(
 @router.get("/stats/{repo_url:path}", response_model=RepositoryStatsResponse)
 async def get_repository_stats(repo_url: str) -> RepositoryStatsResponse:
     """Get statistics for a repository (placeholder)."""
-    # In production, this would fetch from database
     return RepositoryStatsResponse(
         repository_url=repo_url,
         total_tests=0,
@@ -319,45 +315,15 @@ async def get_repository_stats(repo_url: str) -> RepositoryStatsResponse:
 @router.get("/patterns/catalog")
 async def get_pattern_catalog() -> dict[str, Any]:
     """Get catalog of all detectable patterns."""
-    from flakydetector.analyzer.ast_analyzer import FlakyPatternVisitor
-
     return {
         "ast_patterns": {
-            "async_sleep": {
-                "category": "async_race_condition",
-                "severity": "medium",
-                "description": "asyncio.sleep in test - potential race condition",
-            },
-            "concurrent_tasks": {
-                "category": "async_race_condition",
-                "severity": "high",
-                "description": "Concurrent task execution without synchronization",
-            },
-            "time_sleep": {
-                "category": "timing_dependency",
-                "severity": "medium",
-                "description": "time.sleep in test - timing dependency",
-            },
-            "global_mutation": {
-                "category": "global_state",
-                "severity": "high",
-                "description": "Mutation of global variable",
-            },
-            "network_call": {
-                "category": "network_dependency",
-                "severity": "high",
-                "description": "Network call without mocking",
-            },
-            "datetime_now": {
-                "category": "datetime_dependency",
-                "severity": "medium",
-                "description": "Non-deterministic datetime usage",
-            },
-            "float_equality": {
-                "category": "floating_point",
-                "severity": "medium",
-                "description": "Direct float equality comparison",
-            },
+            "async_sleep": {"category": "async_race_condition", "severity": "medium", "description": "asyncio.sleep in test"},
+            "concurrent_tasks": {"category": "async_race_condition", "severity": "high", "description": "Concurrent tasks without sync"},
+            "time_sleep": {"category": "timing_dependency", "severity": "medium", "description": "time.sleep in test"},
+            "global_mutation": {"category": "global_state", "severity": "high", "description": "Mutation of global variable"},
+            "network_call": {"category": "network_dependency", "severity": "high", "description": "Network call without mocking"},
+            "datetime_now": {"category": "datetime_dependency", "severity": "medium", "description": "Non-deterministic datetime usage"},
+            "float_equality": {"category": "floating_point", "severity": "medium", "description": "Direct float equality comparison"},
         },
         "log_patterns": {
             "timeout": "Timeout detected",
