@@ -500,6 +500,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "tree-sitter" },
     { name = "tree-sitter-python" },
+    { name = "typing-extensions" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -570,6 +571,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=8.5.0" },
     { name = "tree-sitter", specifier = ">=0.22.0" },
     { name = "tree-sitter-python", specifier = ">=0.21.0" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
 provides-extras = ["dev", "ci", "gpu"]

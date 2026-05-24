@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-
 import pytest
 
 
@@ -59,3 +58,8 @@ def feature_extractor() -> Any:
     """Feature extractor instance."""
     from flakydetector.classifier.feature_extractor import FeatureExtractor
     return FeatureExtractor()
+
+
+from flakydetector.ci_integration.trap_shared_state import SharedStateTrap
+# Применяется ко всем тестам автоматически
+pytest_plugins = ["flakydetector.ci_integration.py"]
