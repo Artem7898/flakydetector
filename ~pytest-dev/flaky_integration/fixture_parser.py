@@ -113,7 +113,6 @@ class FixtureParser:
 
         return False
 
-
     def _returns_mutable_literal(self, node: ast.FunctionDef) -> bool:
         """Detect return [], {}, set()."""
 

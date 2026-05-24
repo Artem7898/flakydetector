@@ -198,6 +198,16 @@ class LogEntry(BaseModel):
     raw_line: str = ""
 
 
+class FixtureInfo(BaseModel):
+    """Extracted metadata from a pytest fixture."""
+    fixture_name: str = Field(default="function", description="pytest scope (function, class, module, session)")
+    has_yield: bool = Field(default=False, description="True if fixture uses 'yield' (has teardown)")
+    has_autouse: bool = Field(default=False, description="True if autouse=True")
+    returns_mutable_literal: bool = Field(default=False, description="True if returns [], {} or set()")
+    uses_finalizer: bool = Field(default=False, description="True if uses context.addfinalizer")
+    line: int = Field(default=0, description="Line number")
+
+
 class LogAnomaly(BaseModel):
     """Detected anomaly in CI logs."""
 
