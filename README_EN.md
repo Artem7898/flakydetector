@@ -229,6 +229,7 @@ If you use FlakyDetector in your research, please cite:
 - 📧 Email: [alimpievne@gmail.com](mailto:alimpievne@gmail.com)
 - https://orcid.org/0009-0007-6740-7242
 - https://zenodo.org/records/20042797
+- https://doi.org/10.5281/zenodo.20043002 new
 
 
 ---
