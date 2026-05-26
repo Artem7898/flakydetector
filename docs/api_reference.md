@@ -1,12 +1,71 @@
-FlakyDetector API Reference
-This documentation is auto-generated from Pydantic models and FastAPI endpoints to ensure 100% synchronization between code and docs.
+# 💻 API Reference
 
-Live Documentation
-When the backend is running locally, access the interactive API explorer:
+This section provides comprehensive, low-level technical documentation for the core python modules of the FlakyDetector architecture. It is synchronized with the source code via static analysis.
 
-Swagger UI: http://localhost:8001/api/docs
-ReDoc (Publication ready): http://localhost:8001/api/redoc
-Static Generation (for CI/CD)
-To generate a static HTML file for hosting on GitHub Pages:
+## 🧬 Layer 1: Analysis Engine (Stateless AST Scanning)
 
-uv run redocly build-docs api/v1/openapi.json --output docs/static_api.html
+The analysis engine parses source files into Abstract Syntax Trees and inspects nodes for static code anomalies.
+
+### AST Analyzer
+```{automodule} flakydetector.analyzer.ast_analyzer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+### Log Analyzer
+```{automodule} flakydetector.analyzer.log_analyzer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+---
+
+## 🧠 Layer 2: Machine Learning Pipeline
+
+Handles data vectorization and wraps the CatBoost inference engine.
+
+### Feature Extractor (37D to 42D)
+```{automodule} flakydetector.classifier.feature_extractor
+   :members:
+   :show-inheritance:
+```
+
+### CatBoost Wrapper
+```{automodule} flakydetector.classifier.catboost_model
+   :members:
+   :show-inheritance:
+```
+
+---
+
+## 🖥️ Layer 3: Dashboard & REST API
+
+FastAPI components powering the user-facing reporting panels.
+
+### API Gateway Routes
+```{automodule} flakydetector.dashboard.routes
+   :members:
+   :undoc-members:
+```
+
+### Data Validation Schemas
+```{automodule} flakydetector.dashboard.models
+   :members:
+   :show-inheritance:
+```
+
+---
+
+## 🛠️ Infrastructure and Utilities
+
+### Typestable Configurations (.env Parser)
+```{automodule} flakydetector.utils.config
+   :members:
+```
+
+### Logger Facility (structlog wrapper)
+```{automodule} flakydetector.utils.logger
+   :members:
+```

@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "Research Team", email = "research@flakydetector.io" },
+    { name = "Artem Alimpiev", email = "alimpievne@gmail.com" },
 ]
 keywords = ["flaky-tests", "ci-cd", "machine-learning", "ast-analysis", "test-quality"]
 classifiers = [
@@ -76,16 +76,25 @@ gpu = [
     "jax[cuda12]>=0.4.35",
 ]
 
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "myst-parser>=2.0.0",
+]
+
 [project.scripts]
 flakydetector = "flakydetector.cli:main"
 
 [project.urls]
-Repository = "https://github.com/yourorg/flakydetector"
-Documentation = "https://flakydetector.readthedocs.io"
-Changelog = "https://github.com/yourorg/flakydetector/releases"
+Repository = "https://github.com/Artem7898/flakydetector"
+Documentation = "https://readthedocs.io"
+Changelog = "https://github.com/Artem7898/flakydetector/releases"
+
+[tool.hatch.build]
+sources = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/flakydetector"]
+packages = ["flakydetector"]
 
 [tool.ruff]
 target-version = "py311"
@@ -110,9 +119,6 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["flakydetector"]
-
-[tool.ruff.lint.type-checking]
-runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
 [tool.pyright]
 pythonVersion = "3.11"
@@ -153,3 +159,27 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+pretty = true
+
+# Игнорируем отсутствие типов в библиотеках, у которых нет стабов (например, catboost, tree-sitter)
+[[tool.mypy.overrides]]
+module = [
+    "catboost.*",
+    "tree_sitter.*",
+    "tree_sitter_python.*",
+    "sklearn.*",
+    "plotly.*",
+    "kaleido.*"
+]
+ignore_missing_imports = true
+
+# Добавь в конец pyproject.toml
+
+[project.entry-points.pytest11]
+flaky-trail = "flakydetector.pytest_flaky_trail.plugin"
+
