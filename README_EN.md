@@ -176,6 +176,7 @@ The system converts source code into a mathematical representation:
 | **AST Features** | 16 | Counters for specific anti-patterns (e.g., `ast_time_sleep: 1.0`). |
 | **Category Features** | 9 | Aggregate scores for root causes (Timing, State, Network). |
 | **Test Smells** | 1 | Cyclomatic Complexity of the test function. |
+| **Fixture Analysis (NEW)** | 5 |  Fixture analysis: scope="session", no yield, return of mutable literals.|
 | **Derived Features** | 3 | Mathematical ratios: `ast_to_log_ratio`, `pattern_diversity`. |
 | **Confidence Scores** | 8 | Maximum and average detector certainties. |
 
@@ -226,6 +227,10 @@ If you use FlakyDetector in your research, please cite:
 - 🐙 GitHub: [Artem7898](https://github.com/Artem7898)
 - 💼 LinkedIn: [artem-alimpiev](https://www.linkedin.com/in/artem-alimpiev/)
 - 📧 Email: [alimpievne@gmail.com](mailto:alimpievne@gmail.com)
+- https://orcid.org/0009-0007-6740-7242
+- https://zenodo.org/records/20042797
+- https://doi.org/10.5281/zenodo.20043002 new
+
 
 ---
 

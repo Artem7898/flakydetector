@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Scientific API Gateway: A reproducible DDD template for computational physics"
+authors:
+  - family-names: "Alimpiev"
+    given-names: "Artem"
+    orcid: "https://orcid.org/0009-0007-6740-7242"
+license: MIT
+version: 0.3.0
+date-released: "2025-10-27"
+url: "https://github.com/Artem7898/scientific_fastapi"
+abstract: "A high-performance, strictly-typed FastAPI framework implementing Domain-Driven Design, background task queues, and automated MLflow experiment tracking for reproducible computational science."
+keywords:
+  - "fastapi"
+  - "reproducible-research"
+  - "scientific-computing"
+  - "mlflow"
+  - "domain-driven-design"
