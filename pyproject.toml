@@ -94,7 +94,7 @@ Changelog = "https://github.com/Artem7898/flakydetector/releases"
 sources = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["flakydetector"]
+packages = ["src/flakydetector"]
 
 [tool.ruff]
 target-version = "py311"
