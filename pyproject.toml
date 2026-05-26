@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "Artem Alimpiev", email = "alimpievne@gmail.com" },
+    { name = "Research Team", email = "research@flakydetector.io" },
 ]
 keywords = ["flaky-tests", "ci-cd", "machine-learning", "ast-analysis", "test-quality"]
 classifiers = [
@@ -80,8 +80,9 @@ gpu = [
 flakydetector = "flakydetector.cli:main"
 
 [project.urls]
-Repository = "https://github.com/Artem7898/flakydetector"
-
+Repository = "https://github.com/yourorg/flakydetector"
+Documentation = "https://flakydetector.readthedocs.io"
+Changelog = "https://github.com/yourorg/flakydetector/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flakydetector"]
