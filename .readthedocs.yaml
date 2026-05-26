@@ -7,14 +7,12 @@ build:
   apt_packages:
     - build-essential
     - gfortran
-
+  jobs:
+    post_install:
+      - pip install uv
+      - uv pip install --system ".[docs,dev]"
 python:
-  install:
-    - method: uv
-      command: pip
-    
-      requirements:
-        - ".[docs,dev]"
+  install: []
 
 sphinx:
   configuration: docs/conf.py
