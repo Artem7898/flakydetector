@@ -13,7 +13,8 @@ python:
     - method: uv
       command: pip
       path: .
-      extra_requirements:
+    
+      requirements:
         - docs
         - dev
 
