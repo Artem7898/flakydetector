@@ -10,7 +10,8 @@ build:
   jobs:
     post_install:
       - pip install uv
-      - uv pip install --system ".[docs,dev]"
+      - uv pip install --python "$READTHEDOCS_VIRTUALENV_PATH/bin/python" ".[docs,dev]"
+
 python:
   install: []
 
