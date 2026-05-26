@@ -40,3 +40,16 @@ html_static_path = ['_static']
 autodoc_member_order = 'bysource'
 autoclass_content = 'both'
 autodoc_typehints = 'description'
+
+
+autodoc_mock_imports = [
+    "catboost",
+    "tree_sitter",
+    "tree_sitter_python",
+    "cupy",
+    "jax",
+    "openai",
+    "anthropic",
+    "plotly",
+    "kaleido"
+]
