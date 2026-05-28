@@ -75,24 +75,31 @@ gpu = [
     "cupy-cuda12x>=13.3.0",
     "jax[cuda12]>=0.4.35",
 ]
-
 docs = [
     "sphinx>=8.0.0",
-    "furo>=2024.8.6",
+    "sphinx-rtd-theme>=3.0.0",
     "myst-parser>=4.0.0",
-    "sphinx-autodoc-typehints>=2.3.0",
+    "furo"
 ]
 
 [project.scripts]
 flakydetector = "flakydetector.cli:main"
+
+
+[project.entry-points.pytest11]
+flaky-trail = "flakydetector.pytest_flaky_trail.plugin"
 
 [project.urls]
 Repository = "https://github.com/Artem7898/flakydetector"
 Documentation = "https://flakydetector.readthedocs.io"
 Changelog = "https://github.com/Artem7898/flakydetector/releases"
 
+
+[tool.hatch.build]
+sources = ["src"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/flakydetector"]
+packages = ["flakydetector"]
 
 [tool.ruff]
 target-version = "py311"
@@ -157,6 +164,6 @@ branch = true
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
-    "if __name__ == .__main__.:",
+    'if __name__ == .__main__.:',
     "raise NotImplementedError",
 ]

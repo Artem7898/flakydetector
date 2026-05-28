@@ -140,6 +140,7 @@ CatBoost реализует встроенный overfitting detector, кото�
 
 ### 6.1 Место в пайплайне FlakyDetector
 
+````
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   AST Parser    │────▶│ Feature Extractor│────▶│ 42D Vector      │
 │  (37D legacy)   │     │ (+5D fixtures)   │     │ (CatBoost input)│
@@ -156,7 +157,7 @@ CatBoost реализует встроенный overfitting detector, кото�
 │ Flakiness Score │
 │ 0.0 – 1.0       │
 └─────────────────┘
-
+````
 
 ### 6.2 Обратная совместимость
 
@@ -210,3 +211,7 @@ def test_a(shared_state):
 
 def test_b(shared_state):
     assert len(shared_state) == 0  # FLAKY: depends on test execution order
+
+```
+
+**Рекомендация:** Добавить yield и перейти на scope="function".

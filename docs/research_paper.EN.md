@@ -138,8 +138,9 @@ becomes statistically significant, and the model achieves high AUC values.
 
 ## 6. Architectural Integration
 
-### 6.1 Pipeline Position
---
+ 6.1 Pipeline Position
+---
+````
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   AST Parser    │────▶│ Feature Extractor│────▶│ 42D Vector      │
 │  (37D legacy)   │     │ (+5D fixtures)   │     │ (CatBoost input)│
@@ -156,7 +157,7 @@ becomes statistically significant, and the model achieves high AUC values.
 │ Flakiness Score │
 │ 0.0 – 1.0       │
 └─────────────────┘
-
+````
 ---
 
 ### 6.2 Backward Compatibility
@@ -211,4 +212,6 @@ def test_a(shared_state):
 
 def test_b(shared_state):
     assert len(shared_state) == 0  # FLAKY: depends on test execution order
+
+```
 

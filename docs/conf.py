@@ -3,10 +3,14 @@ import sys
 # Добавляем путь к исходному коду, чтобы Sphinx мог импортировать модули для анализа
 sys.path.insert(0, os.path.abspath('../src'))
 
-project = 'FlakyDetector'
-copyright = '2026, Research Team'
-author = 'Research Team'
-release = '0.1.0'
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+
+project = "FlakyDetector"
+copyright = "2026, Artem Alimpiev"
+author = "Artem Alimpiev"
+release = "0.1.0"
+version = "0.1.0"
 
 # Подключаем расширения для автогенерации, поддержки Google-стиля докстрингов и Markdown
 extensions = [
@@ -19,8 +23,10 @@ extensions = [
 
 # Настройки парсера Markdown для поддержки таблиц и блоков внимания (нотификаций)
 myst_enable_extensions = [
-    "colon_fence",
-    "table",
+    "colon_fence",   # allows ::: for directives
+    "deflist",       # allows definition lists
+    "dollarmath",    # позволяет использовать $ $ для формул
+
 ]
 
 templates_path = ['_templates']
@@ -40,6 +46,12 @@ html_static_path = ['_static']
 autodoc_member_order = 'bysource'
 autoclass_content = 'both'
 autodoc_typehints = 'description'
+
+# Настройка расширений файлов
+source_suffix = {
+    ".md": "markdown",
+    ".txt": "markdown",
+}
 
 
 autodoc_mock_imports = [
