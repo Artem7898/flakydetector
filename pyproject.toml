@@ -76,6 +76,12 @@ gpu = [
     "jax[cuda12]>=0.4.35",
 ]
 
+docs = [
+    "sphinx>=8.0.0",
+    "sphinx-rtd-theme>=3.0.0",
+    "myst-parser>=4.0.0",
+]
+
 [project.scripts]
 flakydetector = "flakydetector.cli:main"
 
