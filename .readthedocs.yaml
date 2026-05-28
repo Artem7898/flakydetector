@@ -10,7 +10,6 @@ build:
   jobs:
     post_install:
       - pip install uv
-      - uv pip install --python "$READTHEDOCS_VIRTUALENV_PATH/bin/python" -r docs/requirements.txt
       - uv pip install --python "$READTHEDOCS_VIRTUALENV_PATH/bin/python" ".[docs,dev]"
 
 python:
