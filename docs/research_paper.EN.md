@@ -175,12 +175,18 @@ Model `flaky_v2_42d.cbm` maintains full backward compatibility with 37D vectors:
 
 ---
 
-## 8. Future Work
+## 8. Completed sprints (Retrospective)
+The initial plan (Sprint 2-4) was adjusted during development due to the identified environmental constraints. A hybrid approach was chosen.
 
-- **Sprint 2:** Integration of asynchronous context features (`asyncio` event loop pollution, `loop_scope` parameters).
-- **Sprint 3:** Mock analysis (`unittest.mock`) — detection of mocks not reset between tests.
-- **Sprint 4:** RAG-agent for generating fix recommendations (not only detection but also automated refactoring).
+8.1 Sprint 2: Telemetry and collection of real trails (pytest-flaky-trail)
+Instead of analyzing third-party CI logs, a proprietary pytest plugin (pytest-flaky-trail) was developed using the pytest_runtest_makereport hook. The plugin is integrated via entry-points into pyproject.toml and serverlessly records test results (passed/failed) and tracebacks in SQLite. Methodology: A run of synthetic Flaky tests with random injection.random() allowed us to assemble the first controlled dataset and prove the pipeline's operability.
 
+8.2 Sprint 3: LLM Integration and RAG (Cognitive Layer)
+Implemented a pipeline of context extraction and cognitive analysis:
+
+ETL Extraction: Script extract_dataset.py through AST parsing (ast.get_source_segment), I cut out the source code of the fallen function, combining it with metrics from SQLite into a format.jsonl.
+LLM Analysis: Integration with the local qwen2.5-coder:7b model (via Ollama) using Structured Outputs. LLM conducted a classification of root causes and the generation of correction hypotheses.
+Vectorization (RAG): The analyses are uploaded to ChromaDB, which made it possible to implement a semantic search for similar Flaky tests based on vectors of their explanations, rather than just a textual match.
 ---
 
 ## References

@@ -27,16 +27,16 @@ Unlike ordinary linters, FlakyDetector hunts for architectural anti-patterns: ra
 
 ## ✨ Key Features
 
-| Feature | Description |
-|---------|-------------|
+| Feature | Description                                                                                                         |
+|---------|---------------------------------------------------------------------------------------------------------------------|
 | **🧬 AST Pattern Matching** | Detection of 11+ anti-patterns (`time.sleep`, `datetime.now()`, global variable mutations, unmocked network calls). |
-| **🧠 ML Classification** | Explainable CatBoost model trained on a 37-dimensional feature vector. |
-| **📊 Test Smells Analysis** | Identifies tests with high cyclomatic complexity (>10) that are prone to flakiness. |
-| **🖥️ Interactive Dashboard** | React + Recharts frontend with severity distribution visualization and syntax highlighting. |
-| **📂 CLI Scanner** | Powerful directory scanning with beautiful tabular terminal output (rich). |
-| **⚙️ CI/CD Integration** | Ready-to-use GitHub Actions workflow that blocks Pull Requests when critical patterns are detected. |
-| **🐳 Production Infrastructure** | Docker, `uv` for lightning-fast builds, pre-commit hooks (ruff, pyright). |
-
+| **🧠 ML Classification** | Explainable CatBoost model trained on a 42-dimensional feature vector.                                               |
+| **📊 Test Smells Analysis** | Identifies tests with high cyclomatic complexity (>10) that are prone to flakiness.                                 |
+| **🖥️ Interactive Dashboard** | React + Recharts frontend with severity distribution visualization and syntax highlighting.                         |
+| **📂 CLI Scanner** | Powerful directory scanning with beautiful tabular terminal output (rich).                                          |
+| **⚙️ CI/CD Integration** | Ready-to-use GitHub Actions workflow that blocks Pull Requests when critical patterns are detected.                 |
+| **🐳 Production Infrastructure** | Docker, `uv` for lightning-fast builds, pre-commit hooks (ruff, pyright).                                           |
+| 🔍 RAG Vector Search | ChromaDB + LLM integration for semantic search of tests with similar flakiness patterns.                            |
 ---
 
 ## 🏗️ Architecture
@@ -180,8 +180,8 @@ The system converts source code into a mathematical representation:
 | **Derived Features** | 3 | Mathematical ratios: `ast_to_log_ratio`, `pattern_diversity`. |
 | **Confidence Scores** | 8 | Maximum and average detector certainties. |
 
-**Resulting vector:** 37 features are fed into CatBoost, which provides both classification accuracy and **Feature Importance** for scientific interpretability of results.
-
+**Resulting vector:** 42 features are fed into CatBoost, which provides both classification accuracy and **Feature Importance** for scientific interpretability of results.
+RAG Pipeline (NEW): For semantic trail analysis, integration with local LLM (Ollama) and ChromaDB vector database is implemented, allowing you to search for tests with similar causes of instability.
 ---
 
 ## 🛠 Development

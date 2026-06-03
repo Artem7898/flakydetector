@@ -29,18 +29,15 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Инициализация хранилища при старте сессии."""
     global _storage, _run_id
 
     if not config.getoption("--flaky-trail", skip=True):
         return
-
-    db_path = config.getoption("--flaky_trail_db", skip=True)
+    db_path = config.getoption("flaky_trail_db")
     _storage = TrailStorage(db_path=db_path)
-
-    # Пытаемся угадать имя репозитория по папке
     repo_name = Path.cwd().name
     _run_id = _storage.start_run(repo_name=repo_name)
+
 
 
 @pytest.hookimpl(hookwrapper=True)

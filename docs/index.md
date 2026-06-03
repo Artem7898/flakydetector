@@ -79,11 +79,15 @@ uv run python scripts/scan_folder.py ./my_project/tests/
 
 
 
-## 🔬 Scientific Methodology Summary
+## 🔬 Scientific Methodology & RAG Pipeline
+FlakyDetector converts source code into a mathematical representation through a 42-dimensional feature vector (expanded from 37D via pytest fixture state analysis). The model automatically discovered that the absence of teardown logic (yield) is the strongest predictor of flakiness (feature importance: 66.00%).
 
-FlakyDetector converts source code into a mathematical representation through a 42-dimensional feature vector. The model automatically discovered that the absence of teardown logic (yield) in pytest fixtures is the strongest predictor of flakiness (feature importance: 66.00%).
+Cognitive RAG Layer (Sprints 2-3): Beyond static ML, FlakyDetector implements a Retrieval-Augmented Generation pipeline:
 
-For the complete mathematical proof, experimental design, and statistical analysis, read the dedicated Research Papers linked in the Table of Contents above.
+Telemetry: The pytest-flaky-trail plugin captures execution outcomes into SQLite.
+Extraction: AST parsers isolate failing function contexts.
+LLM Analysis: Local LLMs (e.g., Qwen 2.5 Coder) provide root-cause categorization and fix strategies.
+Vector Search: Explanations are embedded via ChromaDB, allowing semantic search for tests with similar flakiness patterns (e.g., "find all tests with state leakage").
 
 ## 🛠️ Development Standards
 
