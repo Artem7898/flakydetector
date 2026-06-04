@@ -77,3 +77,15 @@ class RepositoryStatsResponse(BaseModel):
     top_patterns: list[dict[str, Any]]
     analysis_timestamp: datetime
 
+
+class SimilarTestResult(BaseModel):
+    """Результат поиска из RAG (ChromaDB)."""
+    nodeid: str
+    flakiness_rate: float
+    explanation: str
+    similarity_score: float  # ChromaDB distance (переведенный в %)
+
+class RAGSearchResponse(BaseModel):
+    """Ответ на запрос семантического поиска."""
+    query: str
+    results: list[SimilarTestResult]

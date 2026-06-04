@@ -7,3 +7,6 @@ const api = axios.create({
 
 export const analyzeCode = (payload) => api.post('/analyze', payload);
 export const getPatternCatalog = () => api.get('/patterns/catalog');
+
+// RAG Semantic Search
+export const searchSimilarTests = (query) => api.get('/search_similar', { params: { query } });

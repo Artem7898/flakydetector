@@ -9,7 +9,7 @@ import zipfile
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Query
 
 from flakydetector.analyzer.ast_analyzer import ASTAnalyzer
 from flakydetector.analyzer.log_analyzer import LogAnalyzer
@@ -26,6 +26,9 @@ from flakydetector.dashboard.models import (
 from flakydetector.models.domain import FlakyCategory, FlakySeverity
 from flakydetector.utils.config import get_settings
 from flakydetector.utils.logger import get_logger
+import chromadb
+from flakydetector.dashboard.models import RAGSearchResponse, SimilarTestResult
+
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -333,3 +336,45 @@ async def get_pattern_catalog() -> dict[str, Any]:
             "resource_leak": "Resource leak detected",
         },
     }
+
+
+
+# Путь к векторной базе (туда же, куда писал скрипт build_rag.py)
+RAG_DB_PATH = "data/vector_db"
+
+
+@router.get("/search_similar", response_model=RAGSearchResponse, tags=["rag"])
+async def search_similar_tests(
+        query: str = Query(..., description="Семантический запрос (например: 'утечки памяти')")
+) -> RAGSearchResponse:
+    """RAG endpoint: поиск тестов с похожими причинами флакинесса."""
+    try:
+        client = chromadb.PersistentClient(path=RAG_DB_PATH)
+        collection = client.get_or_create_collection(name="flaky_analyses")
+
+        results = collection.query(
+            query_texts=[query],
+            n_results=5  # Возвращаем топ-5 похожих тестов
+        )
+
+        formatted_results = []
+        # results["distances"][0] содержит массив дистанций
+        for nodeid, metadata, distance in zip(
+                results["ids"][0],
+                results["metadatas"][0],
+                results["distances"][0]
+        ):
+            formatted_results.append(
+                SimilarTestResult(
+                    nodeid=nodeid,
+                    flakiness_rate=metadata.get("flakiness_rate", 0.0),
+                    explanation=metadata.get("explanation", ""),
+                    similarity_score=round(1 - distance, 2)  # Конвертируем дистанцию в процент сходства
+                )
+            )
+
+        return RAGSearchResponse(query=query, results=formatted_results)
+
+    except Exception as e:
+        # Если БД еще не создана (пользователь не запускал build_rag.py)
+        raise HTTPException(status_code=404, detail=f"RAG Database not found or error: {str(e)}")
