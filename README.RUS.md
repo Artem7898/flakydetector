@@ -255,8 +255,6 @@ uv run pytest tests/unit/ -v
 
 
 <div align="center">
-  <video src="./assets/demo.mp4" width="700" controls poster="./assets/demo_poster.png">
-    Ваш браузер не поддерживает видео. 
-    <a href="./assets/demo.mp4">Скачать демо</a>
-  </video>
+  <img src="./assets/demo.gif" alt="FlakyDetector Demo" width="700">
+  <p><em>Демо работы FlakyDetector: сканирование и детекция flaky-тестов</em></p>
 </div>

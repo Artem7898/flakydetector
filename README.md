@@ -251,8 +251,6 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 </div>
 
 <div align="center">
-  <video src="./assets/demo.mp4" width="700" controls poster="./assets/demo_poster.png">
-    Ваш браузер не поддерживает видео. 
-    <a href="./assets/demo.mp4">Скачать демо</a>
-  </video>
+  <img src="./assets/demo.gif" alt="FlakyDetector Demo" width="700">
+  <p><em>FlakyDetector Demonstration: tests</em></p>
 </div>
