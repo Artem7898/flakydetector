@@ -252,3 +252,11 @@ uv run pytest tests/unit/ -v
 *Сделано для исследователей и инженеров. AST + ML. Точно. Воспроизводимо.*
 
 </div>
+
+
+<div align="center">
+  <video src="./assets/demo.mp4" width="700" controls poster="./assets/demo_poster.png">
+    Ваш браузер не поддерживает видео. 
+    <a href="./assets/demo.mp4">Скачать демо</a>
+  </video>
+</div>
