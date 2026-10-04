@@ -5,6 +5,19 @@ accuracy benchmark or a guarantee that every release gate has passed.
 
 ## [Unreleased]
 
+### Documentation
+
+- Build Sphinx documentation as a required check of the final source ZIP on both
+  CI Python versions; keep the existing `CI gate` mandatory.
+- Read the documentation version from `pyproject.toml` and add explicit MyST
+  navigation for all current pages, including limitations and historical claims.
+- Install hashed documentation requirements exported from `uv.lock` on Read the
+  Docs, without installing or importing the application or ML integrations.
+- Exclude archived raw verification logs and requirements from Markdown parsing;
+  keep all archived evidence unchanged.
+- Document `main` / `latest`, GitHub integration, PR previews and the unrelated
+  retained `v1.0.0` tag. Hosted settings/build success are not claimed by this edit.
+
 ### Release status
 
 - Prepare **0.2.1rc1**, an audit-remediation candidate based on the supplied 0.2.0

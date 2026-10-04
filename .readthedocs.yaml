@@ -5,13 +5,13 @@ build:
   tools:
     python: "3.12"
 
+# Exported from uv.lock: no application, ML model, API server or Node build
+# is required to render the hand-written documentation.
 python:
   install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+    - requirements: docs/requirements.txt
 
 sphinx:
+  builder: html
   configuration: docs/conf.py
   fail_on_warning: true
