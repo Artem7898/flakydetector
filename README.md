@@ -1,5 +1,7 @@
 # FlakyDetector 0.2.1rc1
 
+**Documentation:** [FlakyDetector documentation on Read the Docs](https://flakydetector.readthedocs.io/en/latest/).
+
 **Audit-remediation release candidate for the supplied 0.2.0 audit, not a stable release.** Python backend by Artem Alimpiev.
 
 FlakyDetector inspects Python test source, preserves attributable evidence and optionally records pytest attempts. A static pattern is **not** proof of intermittent failure. `no_known_risk` is not “stable”; `risk_score` is a heuristic index, not a probability. No evaluated production model or real-world accuracy claim is shipped.
