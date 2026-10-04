@@ -84,7 +84,8 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         # afterwards does not replace that binding. Do not conflate origin with lookup.
         self.module_from_imports = {
             alias.asname or alias.name
-            for node in scope_nodes(tree) if isinstance(node, ast.ImportFrom)
+            for node in scope_nodes(tree)
+            if isinstance(node, ast.ImportFrom)
             for alias in node.names
         }
         module_path = PurePosixPath(path.replace("\\", "/")).with_suffix("")
@@ -144,15 +145,23 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         self.classes.append(node.name)
         # This is static discovery under the default pytest naming convention,
         # not a claim that collection/imports/custom hooks have been executed.
-        enabled = node.name.startswith("Test") and not any(
-            isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and child.name in {"__init__", "__new__"} for child in node.body
-        ) and not any(
-            isinstance(child, ast.Assign) and any(
-                isinstance(target, ast.Name) and target.id == "__test__"
-                for target in child.targets
-            ) and isinstance(child.value, ast.Constant) and child.value.value is False
-            for child in node.body
+        enabled = (
+            node.name.startswith("Test")
+            and not any(
+                isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and child.name in {"__init__", "__new__"}
+                for child in node.body
+            )
+            and not any(
+                isinstance(child, ast.Assign)
+                and any(
+                    isinstance(target, ast.Name) and target.id == "__test__"
+                    for target in child.targets
+                )
+                and isinstance(child.value, ast.Constant)
+                and child.value.value is False
+                for child in node.body
+            )
         )
         self.collectible_classes.append(enabled and all(self.collectible_classes))
         for child in node.body:
@@ -181,7 +190,8 @@ class FlakyPatternVisitor(ast.NodeVisitor):
             locals=locals_,
             direct_imports={
                 alias.asname or alias.name
-                for child in nodes if isinstance(child, ast.ImportFrom)
+                for child in nodes
+                if isinstance(child, ast.ImportFrom)
                 for alias in child.names
             },
         )
@@ -193,7 +203,9 @@ class FlakyPatternVisitor(ast.NodeVisitor):
             for dec in node.decorator_list
         )
         if (
-            node.name.startswith("test") and not parent.name and not is_fixture
+            node.name.startswith("test")
+            and not parent.name
+            and not is_fixture
             and all(self.collectible_classes)
         ):
             self.tests.append(
@@ -339,17 +351,13 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     network_call=name,
                     is_mocked=mocked,
                 )
-            elif (
-                name
-                in {
-                    "datetime.now",
-                    "datetime.utcnow",
-                    "datetime.datetime.now",
-                    "datetime.datetime.utcnow",
-                    "time.time",
-                }
-                and not self._mock_applies(node.func, name)
-            ):
+            elif name in {
+                "datetime.now",
+                "datetime.utcnow",
+                "datetime.datetime.now",
+                "datetime.datetime.utcnow",
+                "time.time",
+            } and not self._mock_applies(node.func, name):
                 self.add(
                     node,
                     "datetime_now",

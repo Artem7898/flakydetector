@@ -4,6 +4,7 @@ Install Playwright and its Chromium browser in a separate tooling environment.
 The application must already be running, with no API token and optional ML disabled.
 This is a functional smoke test, not an accessibility/performance certification.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,19 +57,26 @@ def main() -> None:
                 page.get_by_role("checkbox", name="Request evaluated ML model").uncheck()
                 checks.append("settings-mark-stale")
                 page.get_by_role("button", name="File / ZIP", exact=True).click()
-                page.get_by_label("Source file or ZIP").set_input_files({
-                    "name": "test_upload.py", "mimeType": "text/x-python",
-                    "buffer": b"def test_uploaded():\n    assert True\n",
-                })
+                page.get_by_label("Source file or ZIP").set_input_files(
+                    {
+                        "name": "test_upload.py",
+                        "mimeType": "text/x-python",
+                        "buffer": b"def test_uploaded():\n    assert True\n",
+                    }
+                )
                 page.get_by_role("button", name="Run analysis", exact=True).click()
-                expect(page.get_by_role("heading", name="test_uploaded", exact=True)).to_be_visible()
+                expect(
+                    page.get_by_role("heading", name="test_uploaded", exact=True)
+                ).to_be_visible()
                 page.get_by_role("button", name="Clear file and return to code").click()
                 expect(source).to_have_value("def test_fixed():\n    assert True\n")
                 checks.append("upload-clear-preserves-draft")
                 source.fill("def broken(:\n")
                 page.get_by_role("button", name="Run analysis", exact=True).click()
                 expect(page.locator(".status-error")).to_be_visible()
-                expect(page.get_by_role("heading", name="Analysis coverage and limitations")).to_be_visible()
+                expect(
+                    page.get_by_role("heading", name="Analysis coverage and limitations")
+                ).to_be_visible()
                 checks.append("syntax-422-is-rendered")
                 if browser_errors:
                     raise AssertionError("Uncaught browser errors")

@@ -162,7 +162,9 @@ class TestRunResult(ValueModel):
 
 
 class TestAnalysisResult(ValueModel):
-    result_kind: Literal["test_candidate", "module", "helper", "unattributed_log"] = "test_candidate"
+    result_kind: Literal["test_candidate", "module", "helper", "unattributed_log"] = (
+        "test_candidate"
+    )
     test_name: str
     file_path: str
     verdict: Literal["risk_detected", "no_known_risk", "inconclusive"]

@@ -15,6 +15,15 @@ accuracy benchmark or a guarantee that every release gate has passed.
 
 ### Fixed
 
+- **PR #6 CI follow-up:** remove loop-variable capture from the log matcher;
+  normalize Python imports/formatting with the pinned Ruff version. Keep all
+  lint, typing, test, packaging and container checks mandatory.
+- Retry transient readiness connection resets under a monotonic deadline,
+  check that the container is still running, and retain diagnostics until
+  cleanup. Non-transient HTTP errors and readiness timeouts still fail.
+- Print verifier subprocess output in the CI log as well as preserving the
+  per-check evidence files; record the failing container-smoke stage.
+
 - **F01 — mock binding:** distinguish imported origins from supported runtime
   lookup namespaces; add paired wrong/right patch regressions.
 - **F02 — log attribution:** remove the single-test fallback. Unmatched logs stay

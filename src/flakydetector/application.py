@@ -27,6 +27,19 @@ from flakydetector.models.domain import (
 from flakydetector.utils.config import Settings
 
 
+def _belongs_to_test(nodeid: object, *, file_path: str, test: TestDefinition) -> bool:
+    """Match an attributed log without closing over the analysis loop's variables."""
+    if not isinstance(nodeid, str) or "::" not in nodeid:
+        return False
+    log_path, qualified_name = nodeid.split("::", 1)
+    normalized = str(PurePosixPath(log_path.replace("\\", "/")))
+    return (
+        normalized == str(PurePosixPath(file_path.replace("\\", "/")))
+        and qualified_name.split("[", 1)[0] == test.qualified_name
+        and test.name != "<module>"
+    )
+
+
 class Classifier(Protocol):
     def predict_single(self, features: Sequence[float]) -> tuple[bool, float]: ...
 
@@ -110,7 +123,7 @@ class AnalyzeService:
                                 confidence=0.7,
                                 code_snippet="\n".join(
                                     sources.get(f.file_path, "").splitlines()[
-                                        max(0, f.line - 2):f.line + 5
+                                        max(0, f.line - 2) : f.line + 5
                                     ]
                                 ),
                                 location=CodeLocation(
@@ -124,18 +137,11 @@ class AnalyzeService:
                         )
                 # Only a full, matching nodeid belongs to this static definition.
                 # Do not guess from basenames, bare function names, proximity or file count.
-                def belongs_to_test(nodeid: object) -> bool:
-                    if not isinstance(nodeid, str) or "::" not in nodeid:
-                        return False
-                    log_path, qualified_name = nodeid.split("::", 1)
-                    normalized = str(PurePosixPath(log_path.replace("\\", "/")))
-                    return (
-                        normalized == str(PurePosixPath(name.replace("\\", "/")))
-                        and qualified_name.split("[", 1)[0] == test.qualified_name
-                        and test.name != "<module>"
-                    )
-
-                related_logs = [log for log in logs if belongs_to_test(log.metadata.get("test_name"))]
+                related_logs = [
+                    log
+                    for log in logs
+                    if _belongs_to_test(log.metadata.get("test_name"), file_path=name, test=test)
+                ]
                 assigned_logs.update(id(log) for log in related_logs)
                 ds = (*source.diagnostics, *selection.diagnostics)
                 all_diagnostics.extend(selection.diagnostics)
@@ -250,16 +256,27 @@ class AnalyzeService:
         evidence_links = sum(len(r.patterns) + len(r.log_anomalies) for r in results)
         unique_risks = {
             (p.location.file_path, p.location.line_start, p.pattern_type)
-            for r in results for p in r.patterns if p.confidence >= 0.5
+            for r in results
+            for p in r.patterns
+            if p.confidence >= 0.5
         }
         return AnalysisResponse(
             status=status,
-            request_fingerprint=hashlib.sha256(json.dumps(
-                {"sources": dict(sorted(sources.items())), "log": log_content, "use_ml": use_ml},
-                sort_keys=True, separators=(",", ":"),
-            ).encode()).hexdigest(),
+            request_fingerprint=hashlib.sha256(
+                json.dumps(
+                    {
+                        "sources": dict(sorted(sources.items())),
+                        "log": log_content,
+                        "use_ml": use_ml,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest(),
             source_snapshots=tuple(
-                SourceSnapshot(file_path=name, content=code, sha256=hashlib.sha256(code.encode()).hexdigest())
+                SourceSnapshot(
+                    file_path=name, content=code, sha256=hashlib.sha256(code.encode()).hexdigest()
+                )
                 for name, code in sorted(sources.items())
             ),
             total_files_analyzed=valid_files,
@@ -271,9 +288,9 @@ class AnalyzeService:
             test_candidates=sum(len(source.tests) for source in targets.values()),
             unique_risk_locations=len(unique_risks),
             tests_with_risk=sum(
-                r.result_kind == "test_candidate" and (
-                    any(p.confidence >= 0.5 for p in r.patterns) or bool(r.log_anomalies)
-                ) for r in results
+                r.result_kind == "test_candidate"
+                and (any(p.confidence >= 0.5 for p in r.patterns) or bool(r.log_anomalies))
+                for r in results
             ),
             evidence_links=evidence_links,
             diagnostic_groups=sum(r.result_kind != "test_candidate" for r in results),

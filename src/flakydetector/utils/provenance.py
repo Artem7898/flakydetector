@@ -12,7 +12,6 @@ from pathlib import Path
 
 from flakydetector.analyzer.ast_analyzer import EXCLUDE
 
-
 PROVENANCE_VERSION = 3
 
 
@@ -24,7 +23,15 @@ def source_fingerprint(root: Path) -> str:
             path = Path(current, name)
             if not path.is_symlink() and (
                 path.suffix == ".py"
-                or name in {"pyproject.toml", "uv.lock", "poetry.lock", "pytest.ini", "tox.ini", "setup.cfg"}
+                or name
+                in {
+                    "pyproject.toml",
+                    "uv.lock",
+                    "poetry.lock",
+                    "pytest.ini",
+                    "tox.ini",
+                    "setup.cfg",
+                }
             ):
                 digest.update(path.relative_to(root).as_posix().encode() + b"\0")
                 content = hashlib.sha256()

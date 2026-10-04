@@ -72,14 +72,14 @@ def test_llm_validates_evidence_and_does_not_execute_code(tmp_path):
     assert analyze_dataset([record()], output, model="test-model", complete=completion) == (0, 0)
     assert len(output.read_text().splitlines()) == 1
 
+
 def test_llm_fixed_code_is_never_executed(tmp_path):
     marker = tmp_path / "unexpected_execution.txt"
 
     def proposed_fix(**kwargs):
         payload = json.loads(completion(**kwargs))
         payload["fixed_code"] = (
-            "from pathlib import Path\n"
-            f"Path({str(marker)!r}).write_text('executed')\n"
+            f"from pathlib import Path\nPath({str(marker)!r}).write_text('executed')\n"
         )
         return json.dumps(payload)
 

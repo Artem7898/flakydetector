@@ -4,6 +4,7 @@ Use effective getini()/option values, including CLI overrides. Only value hashes
 are stored: pytest plugins may put credentials in their configuration/options.
 An unsupported value disables automatic labels instead of producing a guessed key.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -20,13 +21,26 @@ from pydantic import JsonValue
 from flakydetector.utils.provenance import PROVENANCE_VERSION
 
 KNOWN_INI = {
-    "filterwarnings", "addopts", "xfail_strict", "empty_parameter_set_mark",
-    "python_files", "python_classes", "python_functions", "pythonpath", "testpaths",
-    "asyncio_mode", "asyncio_default_fixture_loop_scope", "asyncio_default_test_loop_scope",
+    "filterwarnings",
+    "addopts",
+    "xfail_strict",
+    "empty_parameter_set_mark",
+    "python_files",
+    "python_classes",
+    "python_functions",
+    "pythonpath",
+    "testpaths",
+    "asyncio_mode",
+    "asyncio_default_fixture_loop_scope",
+    "asyncio_default_test_loop_scope",
 }
 # Exclude ONLY recorder bookkeeping; all other CLI options are conservative split keys.
 RECORDER_OPTIONS = {
-    "flaky_trail", "flaky_trail_db", "flaky_trail_repo", "flaky_trail_revision", "flaky_trail_env",
+    "flaky_trail",
+    "flaky_trail_db",
+    "flaky_trail_repo",
+    "flaky_trail_revision",
+    "flaky_trail_env",
 }
 ENV_KEYS = ("PYTHONHASHSEED", "PYTHONWARNINGS", "PYTEST_ADDOPTS", "TZ", "LANG", "LC_ALL")
 
@@ -90,9 +104,12 @@ def execution_snapshot(config: pytest.Config, order: list[str]) -> dict[str, Jso
         "effective_option_hashes": options,
         "environment_hashes": {key: hash_value(os.environ.get(key)) for key in ENV_KEYS},
         "interpreter_warning_options_hash": hash_value(sys.warnoptions),
-        "loaded_plugin_versions_hash": hash_value(sorted(
-            (dist.project_name, dist.version) for _, dist in config.pluginmanager.list_plugin_distinfo()
-        )),
+        "loaded_plugin_versions_hash": hash_value(
+            sorted(
+                (dist.project_name, dist.version)
+                for _, dist in config.pluginmanager.list_plugin_distinfo()
+            )
+        ),
         "collection_order": list(order),
         "collection_count": len(order),
     }

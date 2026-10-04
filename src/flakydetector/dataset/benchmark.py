@@ -77,7 +77,14 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
             raise ValueError(
                 f"Incomplete static evidence for {record.nodeid}; supply resolved source context"
             )
-        test = next((r for r in response.results if r.test_name == name and r.file_path == path and r.result_kind == "test_candidate"), None)
+        test = next(
+            (
+                r
+                for r in response.results
+                if r.test_name == name and r.file_path == path and r.result_kind == "test_candidate"
+            ),
+            None,
+        )
         if test is None or test.verdict == "inconclusive":
             raise ValueError(f"Test could not be resolved: {record.nodeid}")
         vector = FeatureExtractor().extract_from_patterns(
@@ -87,9 +94,15 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
         body = tree.body
         target: ast.FunctionDef | ast.AsyncFunctionDef | None = None
         for component in name.split("::"):
-            node = next((n for n in body if isinstance(
-                n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-            ) and n.name == component), None)
+            node = next(
+                (
+                    n
+                    for n in body
+                    if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                    and n.name == component
+                ),
+                None,
+            )
             if node is None:
                 raise ValueError(f"Missing clone-analysis target: {record.nodeid}")
             body = node.body
@@ -97,7 +110,9 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
         if target is None:
             raise ValueError(f"Clone-analysis target is not a function: {record.nodeid}")
         normalized = NormalizeNames().visit(target)
-        clone_hash = hashlib.sha256(ast.dump(normalized, include_attributes=False).encode()).hexdigest()
+        clone_hash = hashlib.sha256(
+            ast.dump(normalized, include_attributes=False).encode()
+        ).hexdigest()
         result.append(
             Sample(
                 repo=record.repo,

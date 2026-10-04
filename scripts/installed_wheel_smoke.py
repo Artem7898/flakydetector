@@ -1,4 +1,5 @@
 """Install the built wheel in an independent environment and exercise its real entrypoints."""
+
 from __future__ import annotations
 
 import os
@@ -17,7 +18,9 @@ def main() -> None:
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit("uv is required for independent wheel verification")
-    env = {key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "VIRTUAL_ENV"}}
+    env = {
+        key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "VIRTUAL_ENV"}
+    }
     with tempfile.TemporaryDirectory(prefix="flaky-installed-wheel-") as folder:
         temporary = Path(folder)
         environment = temporary / ".venv"
@@ -25,7 +28,18 @@ def main() -> None:
         requirements = temporary / "requirements.txt"
         commands = [
             [uv, "venv", str(environment), "--python", sys.executable],
-            [uv, "export", "--frozen", "--extra", "api", "--extra", "pytest", "--no-emit-project", "--output-file", str(requirements)],
+            [
+                uv,
+                "export",
+                "--frozen",
+                "--extra",
+                "api",
+                "--extra",
+                "pytest",
+                "--no-emit-project",
+                "--output-file",
+                str(requirements),
+            ],
             [uv, "pip", "sync", "--python", str(python), str(requirements)],
             [uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0])],
         ]

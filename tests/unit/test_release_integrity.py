@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("release_gate_for_tests", ROOT / "scripts/check_release.py")
+SPEC = importlib.util.spec_from_file_location(
+    "release_gate_for_tests", ROOT / "scripts/check_release.py"
+)
 assert SPEC is not None and SPEC.loader is not None
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
@@ -21,7 +23,10 @@ def released_files(tmp_path_factory):
     archive = tmp_path_factory.mktemp("release") / "candidate.zip"
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts/build_release.py"), "--output", str(archive)],
-        cwd=ROOT, text=True, capture_output=True, check=False,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return GATE.read_release(archive)
@@ -31,7 +36,8 @@ def test_actual_release_has_complete_manifest(released_files):
     assert released_files["LICENSE"].startswith(b"MIT License")
     assert json.loads(released_files[GATE.MANIFEST])["files"] == {
         name: hashlib.sha256(data).hexdigest()
-        for name, data in released_files.items() if name != GATE.MANIFEST
+        for name, data in released_files.items()
+        if name != GATE.MANIFEST
     }
 
 
@@ -53,7 +59,10 @@ def test_unmanifested_new_file_is_not_accepted(released_files):
         GATE.validate_entries([*released_files.items(), ("new.txt", b"unexpected")])
 
 
-@pytest.mark.parametrize("name", [".coverage", "src/__pycache__/test.pyc", "../outside.py", "/absolute.py", "src/../escape.py"])
+@pytest.mark.parametrize(
+    "name",
+    [".coverage", "src/__pycache__/test.pyc", "../outside.py", "/absolute.py", "src/../escape.py"],
+)
 def test_forbidden_or_unsafe_paths_fail(released_files, name):
     with pytest.raises(ValueError, match="Unsafe|Forbidden"):
         GATE.validate_entries([*released_files.items(), (name, b"not allowed")])

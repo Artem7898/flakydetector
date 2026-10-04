@@ -261,9 +261,7 @@ def test_unattributed_log_and_helper_visible():
 def test_log_preserves_class_and_parameter():
     expected = "tests/test_a.py::TestCase::test_one[x]"
 
-    (result,) = LogAnalyzer().extract_test_results(
-        f"{expected} FAILED [100%]"
-    )
+    (result,) = LogAnalyzer().extract_test_results(f"{expected} FAILED [100%]")
 
     # The prefix will not detect the loss of a class or parameter.
     assert result.test_name == expected

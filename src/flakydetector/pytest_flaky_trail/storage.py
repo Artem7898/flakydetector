@@ -176,10 +176,12 @@ class TrailStorage:
             ).fetchall()
             reports = {
                 str(row[0]): (
-                    "xpassed" if str(row[1]) == "failed" and str(row[3]).startswith("[XPASS(strict)]")
+                    "xpassed"
+                    if str(row[1]) == "failed" and str(row[3]).startswith("[XPASS(strict)]")
                     else str(row[1]),
                     bool(row[4]),
-                ) for row in rows
+                )
+                for row in rows
             }
             terminal = self._terminal(reports) if phase == "teardown" else "incomplete"
             conn.execute(
@@ -209,7 +211,8 @@ class TrailStorage:
             return "incomplete"
         if any(
             outcome in {"failed", "rerun"} and not xfail
-            for phase, (outcome, xfail) in reports.items() if phase != "call"
+            for phase, (outcome, xfail) in reports.items()
+            if phase != "call"
         ):
             return "error"
         call = reports.get("call")
@@ -223,8 +226,15 @@ class TrailStorage:
             return "incomplete"
         if any(outcome == "xpassed" for outcome, _ in reports.values()):
             return "xpassed"
-        if any(outcome not in {"passed", "failed", "rerun", "skipped"} for outcome, _ in reports.values()):
+        if any(
+            outcome not in {"passed", "failed", "rerun", "skipped"}
+            for outcome, _ in reports.values()
+        ):
             return "unknown"
         if any(xfail for _, xfail in reports.values()):
             return "xpassed"
-        return "passed" if all(outcome == "passed" for outcome, _ in reports.values()) else "incomplete"
+        return (
+            "passed"
+            if all(outcome == "passed" for outcome, _ in reports.values())
+            else "incomplete"
+        )
