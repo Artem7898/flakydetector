@@ -1,260 +1,41 @@
-<div align="center">
-  <img src="./assets/flakydetector_logo.png" alt="FlakyDetector Logo" width="300">
-</div>
+# FlakyDetector 0.2.1rc1
 
-<div align="center">
+**Кандидат с исправлениями аудита поставки 0.2.0, не подтверждённый production-релиз.** Автор: Artem Alimpiev, Python Backend Developer.
 
-# 🔬 FlakyDetector
+Анализатор ищет статические риски в Python-тестах и сохраняет доказательства. Находка не доказывает нестабильность, `risk_score` не является вероятностью, а `no_known_risk` не означает «стабилен».
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![CatBoost](https://img.shields.io/badge/CatBoost-FFCC00.svg?logo=catboost&logoColor=black)](https://catboost.ai/)
-[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg?logo=docker&logoColor=white)](https://www.docker.com/)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF.svg?logo=githubactions&logoColor=white)](https://github.com/features/actions)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+## Запуск
 
-**Обнаружение недетерминированных (flaky) тестов на основе AST-анализа и Machine Learning**
-
-Scientific-grade · Explainable ML · AST Pattern Matching · 37D Feature Space · Test Smells
-
-</div>
-
----
-
-## 🧠 О проекте
-
-**FlakyDetector** — исследовательский инструмент для обнаружения нестабильных тестов в Python-проектах. Вместо того чтобы полагаться на исторические данные прогонов CI, анализатор разбирает Абстрактное Синтаксическое Дерево (AST) исходного кода, извлекает научные признаки (features) и классифицирует их с помощью ML-модели CatBoost.
-
-В отличие от обычных линтеров, FlakyDetector ищет архитектурные антипаттерны: race conditions, утечки ресурсов, зависимость от глобального состояния и высокую цикломатическую сложность (**Test Smells**).
-
----
-
-## ✨ Ключевые возможности
-
-| Возможность                    | Описание                                                                                                                   |
-|--------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| **🧬 AST Pattern Matching**    | Детекция 11+ антипаттернов (`time.sleep`, `datetime.now()`, мутация глобальных переменных, немокированные сетевые вызовы). |
-| **🧠 ML Classification**       | Объяснимая модель CatBoost, обученная на 42-мерном векторе признаков.                                                       |
-| **📊 Test Smells Analysis**    | Выявление тестов с высокой цикломатической сложностью (>10), которые склонны к flakiness.                                  |
-| **🖥️ Interactive Dashboard**  | React + Recharts фронтенд с визуализацией распределения severity и подсветкой синтаксиса.                                  |
-| **📂 CLI Scanner**             | Мощное сканирование целых директорий с красивым табличным выводом в терминале (rich).                                      |
-| **⚙️ CI/CD Integration**       | Готовый GitHub Actions workflow, который блокирует Pull Requests при обнаружении критических паттернов.                    |
-| **🐳 Production Infrastructure** | Docker, `uv` для молниеносной сборки, pre-commit хуки (ruff, pyright).                                                     |
-| 🔍 RAG Vector Search           | ChromaDB + LLM интеграция для семантического поиска тестов с похожими паттернами флакинесса.                               |
-
-
----
-
-## 🏗️ Архитектура
-
-### Clean Architecture (Hexagonal)
-
-```mermaid
-flowchart TB
-    subgraph Adapters ["ADAPTERS (In/Out)"]
-        GH[GitHub API Collector]
-        CI[CI Systems<br/>GitHub Actions]
-        CLI[CLI Scanner<br/>Rich Tables]
-        API[FastAPI REST]
-        UI[React + Vite<br/>Dashboard]
-    end
-
-    subgraph Ports ["PORTS (Interfaces)"]
-        IF1[AbstractFeatureExtractor]
-        IF2[AbstractClassifier]
-    end
-
-    subgraph Core ["CORE DOMAIN (Pure Python)"]
-        AE[Analysis Engine<br/>AST + Log parsing<br/>Stateless, No I/O]
-        DM[Domain Models<br/>Pydantic v2: Report,<br/>Pattern, Location]
-        FE[Feature Extractor<br/>Pattern -> Vector]
-        ND[NumPy NDArray<br/>Typed Memory View]
-    end
-
-    subgraph Infra ["INFRASTRUCTURE (OutPorts)"]
-        CB[CatBoost<br/>.cbm file]
-        DB[(SQLite /<br/>PostgreSQL)]
-        FS[Local FS<br/>Parquet]
-    end
-
-    GH --> Ports
-    CLI --> AE
-    CI --> CLI
-    API --> Ports
-    UI --> API
-
-    Ports --> Core
-    AE <--> DM
-    FE --> ND
-
-    Core --> Infra
-    CB --> Core
-    DB --> Core
-    FS --> Core
-```
-
----
-
-## 🚀 Быстрый старт
-
-**Требования:** Python 3.12+, Node.js 18+ (для UI), Docker (опционально).
-
-### Вариант 1: Локальная установка (через uv)
+Нужны Python 3.12+, Node.js 22 и доступ к registry зависимостей.
 
 ```bash
-# 1. Клонируем репозиторий
-git clone https://github.com/Artem7898/flakydetector
-cd flakydetector
-
-# 2. Устанавливаем uv (современный пакетный менеджер) и зависимости
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# 3. Генерируем синтетический датасет и обучаем ML-модель
-python scripts/train_model.py
-
-# 4. Запускаем API-сервер
-uvicorn flakydetector.dashboard.main:app --reload --port 8001
+uv sync --locked --extra api --extra dev --extra ml --extra github
+uv run --frozen uvicorn flakydetector.dashboard.main:app --host 127.0.0.1 --port 8001
 ```
 
-### Вариант 2: Docker (рекомендуется для изоляции)
-
-```bash
-# Собирает образ и запускает бэкенд на порту 8001
-docker-compose up --build
-```
-
-### Запуск фронтенда (в новом терминале)
+Во втором терминале из корня проекта:
 
 ```bash
 cd dashboard_frontend
-npm install
+npm ci --ignore-scripts
 npm run dev
 ```
 
-🔗 Открой http://localhost:3000 — интерактивный дашборд готов.
+Интерфейс: `http://127.0.0.1:3000`. API: `http://127.0.0.1:8001/api/docs`.
+Для минимального статического анализатора достаточно `uv sync --locked --extra api`.
 
----
+Можно использовать `docker compose up --build`, но успешную реальную сборку нужно подтвердить в своём Docker-окружении. Наличие Dockerfile само по себе ничего не подтверждает.
 
-## 📂 Сканирование папок и CI/CD
+## Что изменено
 
-### Сканирование через CLI
+Привязка логов по полному nodeid; различение импортированного origin и namespace для mock; снимок эффективной конфигурации pytest; сохранение XFAIL/XPASS и traceback повторных попыток; clone-check выбранного теста вместо соседних функций модуля. API различает единицы измерения, а UI открывает исходник именно выполненного анализа и показывает устаревшее состояние.
 
-Анализатор не ограничен веб-интерфейсом. Вы можете натравить его на любую папку с тестами:
+Ответ API 2.1.0 содержит `source_snapshots`, включая текст исходников. Не публикуйте экспорт без проверки. Схема признаков стала 2.1.0: прежние модели не совместимы автоматически, хотя размер вектора остаётся 42.
 
-```bash
-uv run python scripts/scan_folder.py ./my_project/tests/
-```
+Существующий ledger мигрирует в SQLite schema 3 без переобозначения старых наблюдений как достоверных. Для новых запусков предпочтителен отдельный файл `flaky_trails_v3.db`. Не меняйте старым строкам `provenance_version` вручную.
 
-**Пример вывода:**
+## Документы
 
-```
-🔍 Scanning: ./my_project/tests/ ...
+[Статус реализации и ограничения проверки](docs/IMPLEMENTATION_STATUS.RU.md) · [Миграция](docs/MIGRATION_0.2.1.md) · [Контракт API](docs/api_reference.md) · [Границы анализа](docs/LIMITATIONS.md) · [Протокол benchmark](docs/BENCHMARK.md).
 
-                               Flaky Patterns Detected
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
-┃ File               ┃ Line  ┃ Pattern             ┃ Severity   ┃ Confidence┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
-│ test_api.py        │     3 │ time_sleep          │   MEDIUM   │       90% │
-└────────────────────┴───────┴─────────────────────┴────────────┴───────────┘
-```
-
-### Интеграция с GitHub Actions
-
-Инструмент автоматически блокирует Pull Requests, если в код добавлены критические антипаттерны. Workflow уже добавлен в `.github/workflows/flaky_detection.yml`:
-
-```yaml
-- name: Run FlakyDetector
-  run: uv run python scripts/scan_folder.py ./tests --fail-on-critical
-```
-
-Если найден паттерн с `severity: CRITICAL`, шаг завершится с кодом 1, и мерж будет запрещён.
-
----
-
-## 🔬 Научная методология
-
-Система конвертирует исходный код в математическое представление:
-
-| Группа признаков | Кол-во | Описание |
-|------------------|--------|----------|
-| **AST Features** | 16 | Счётчики специфических антипаттернов (например, `ast_time_sleep: 1.0`). |
-| **Category Features** | 9 | Агрегированные баллы корневых причин (Timing, State, Network). |
-| **Test Smells** | 1 | Cyclomatic Complexity — цикломатическая сложность тестовой функции. |
-| **Fixture Analysis (НОВОЕ)** | 5 | Анализ фикстур: scope="session", отсутствие yield, возврат мутабельных литералов. |
-| **Derived Features** | 3 | Математические отношения: `ast_to_log_ratio`, `pattern_diversity`. |
-| **Confidence Scores** | 8 | Максимальные и средние уверенности детектора. |
-
-**Итоговый вектор:** 42 признаков передаются в CatBoost, который обеспечивает как точность классификации, так и **Feature Importance** для научной интерпретируемости результатов.
-RAG Pipeline (НОВОЕ): Для семантического анализа трейлов реализована интеграция с локальными LLM (Ollama) и векторной базой ChromaDB, позволяющая искать тесты с похожими причинами нестабильности.
-
-
----
-
-## 🛠 Разработка
-
-Проект следует строгим стандартам качества:
-
-| Инструмент | Назначение |
-|------------|------------|
-| **ruff** | Форматирование и линтинг (заменяет black, isort, flake8). |
-| **pyright** | Строгая типизация в strict mode (Pydantic v2, Type Hints). |
-| **pytest + pytest-asyncio** | Юнит- и интеграционные тесты. |
-| **pre-commit** | Автоматические проверки при каждом коммите. |
-
-```bash
-# Запуск линтинга
-pre-commit run --all-files
-
-# Запуск тестов
-uv run pytest tests/unit/ -v
-```
-
----
-
-## 📜 Цитирование
-
-Если вы используете FlakyDetector в научных исследованиях, пожалуйста, цитируйте:
-
-```bibtex
-@software{flakydetector2026,
-  author = {Research Team},
-  title = {FlakyDetector: Scientific-grade AST & ML Flaky Test Detection},
-  year = {2026},
-  url = {https://github.com/Artem7898/flakydetector}
-}
-```
-
----
-
-## 👨‍💻 Автор
-
-**Артем Алимпиев** — Python Developer
-
-- 🐙 GitHub: [Artem7898](https://github.com/Artem7898)
-- 💼 LinkedIn: [artem-alimpiev](https://www.linkedin.com/in/artem-alimpiev/)
-- 📧 Email: [alimpievne@gmail.com](mailto:alimpievne@gmail.com)
-- https://orcid.org/0009-0007-6740-7242
-- https://zenodo.org/records/20042797
-- https://doi.org/10.5281/zenodo.20043002 new
-
----
-
-## 📄 Лицензия
-
-Распространяется под лицензией MIT. Подробности в файле [LICENSE](LICENSE).
-
----
-
-<div align="center">
-
-*Сделано для исследователей и инженеров. AST + ML. Точно. Воспроизводимо.*
-
-</div>
-
-
-<div align="center">
-  <img src="./assets/demo.gif" alt="FlakyDetector Demo" width="700">
-  <p><em>Демо работы FlakyDetector: сканирование и детекция flaky-тестов</em></p>
-</div>
+[English README](README.md) содержит команды CLI, recorder, упаковки и проверки final ZIP. `docs/history/0.2.0/` — история, а не результаты проверки текущего кандидата. Новый отчёт проверки привязывается SHA-256 к архиву и хранится отдельно.

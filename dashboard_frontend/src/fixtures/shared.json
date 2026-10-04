@@ -1,0 +1,137 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "3f4031c4-4250-4d40-84b5-61ff62cd85c1",
+  "request_fingerprint": "7be609ce79334696caa4e7c91ce6610f8622439a20f27c8723e3b7e61ef0345f",
+  "source_snapshots": [
+    {
+      "file_path": "conftest.py",
+      "sha256": "f90bd3f6033a4ae58969deb497210ee1d30a6aef18ac87c879304b7755b4f5b5",
+      "content": "import pytest\n@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}\n"
+    },
+    {
+      "file_path": "test_case.py",
+      "sha256": "256d034821d6e846c40e80030d026542ddbb821fe85a3a95744165497f8b4bb5",
+      "content": "def test_one(shared): pass\ndef test_two(shared): pass\n"
+    }
+  ],
+  "status": "ok",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 2,
+  "files_selected": 1,
+  "files_parsed": 1,
+  "files_rejected": 0,
+  "context_files_selected": 1,
+  "test_candidates": 2,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 1,
+  "tests_with_risk": 2,
+  "evidence_links": 2,
+  "diagnostic_groups": 0,
+  "results": [
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_one",
+      "file_path": "test_case.py",
+      "verdict": "risk_detected",
+      "risk_score": 0.35,
+      "patterns": [
+        {
+          "pattern_type": "shared_fixture_state",
+          "category": "global_state_mutation",
+          "severity": "medium",
+          "description": "A used shared fixture exposes a mutable value; mutation may leak between tests",
+          "location": {
+            "file_path": "conftest.py",
+            "line_start": 3,
+            "line_end": null,
+            "function_name": "shared",
+            "class_name": null,
+            "location_string": "conftest.py:3 in shared"
+          },
+          "code_snippet": "@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}",
+          "confidence": 0.7,
+          "fix_suggestion": "Use function scope or explicitly isolate/restore mutations",
+          "metadata": {}
+        }
+      ],
+      "log_anomalies": [],
+      "fixtures": [
+        {
+          "fixture_name": "shared",
+          "scope": "session",
+          "has_yield": false,
+          "has_autouse": false,
+          "returns_mutable_literal": true,
+          "uses_finalizer": false,
+          "line": 3,
+          "file_path": "conftest.py",
+          "class_name": null,
+          "dependencies": [],
+          "function_name": "shared"
+        }
+      ],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": [
+        "Use function scope or explicitly isolate/restore mutations"
+      ]
+    },
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_two",
+      "file_path": "test_case.py",
+      "verdict": "risk_detected",
+      "risk_score": 0.35,
+      "patterns": [
+        {
+          "pattern_type": "shared_fixture_state",
+          "category": "global_state_mutation",
+          "severity": "medium",
+          "description": "A used shared fixture exposes a mutable value; mutation may leak between tests",
+          "location": {
+            "file_path": "conftest.py",
+            "line_start": 3,
+            "line_end": null,
+            "function_name": "shared",
+            "class_name": null,
+            "location_string": "conftest.py:3 in shared"
+          },
+          "code_snippet": "@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}",
+          "confidence": 0.7,
+          "fix_suggestion": "Use function scope or explicitly isolate/restore mutations",
+          "metadata": {}
+        }
+      ],
+      "log_anomalies": [],
+      "fixtures": [
+        {
+          "fixture_name": "shared",
+          "scope": "session",
+          "has_yield": false,
+          "has_autouse": false,
+          "returns_mutable_literal": true,
+          "uses_finalizer": false,
+          "line": 3,
+          "file_path": "conftest.py",
+          "class_name": null,
+          "dependencies": [],
+          "function_name": "shared"
+        }
+      ],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": [
+        "Use function scope or explicitly isolate/restore mutations"
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": null
+}

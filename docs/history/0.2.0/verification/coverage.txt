@@ -1,0 +1,40 @@
+Name                                                    Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------------------------------------------------
+src/flakydetector/__init__.py                               1      0      0      0   100%
+src/flakydetector/analyzer/__init__.py                      0      0      0      0   100%
+src/flakydetector/analyzer/ast_analyzer.py                204     26     84     13    84%   107, 188, 218-220, 229->240, 234, 250, 260->359, 344, 351-356, 391, 398, 404-418, 447-451, 482, 488-489, 502, 504-505, 518, 528
+src/flakydetector/analyzer/fixture_graph.py                46      4     20      4    88%   46, 59, 79, 87
+src/flakydetector/analyzer/fixture_parser.py               47      3     34      3    90%   31->30, 34, 62-67
+src/flakydetector/analyzer/log_analyzer.py                 51      3     14      1    94%   89, 105, 132
+src/flakydetector/analyzer/syntax.py                       58      4     36      3    90%   25, 66-67, 97
+src/flakydetector/application.py                           83      1     32      1    98%   95
+src/flakydetector/ci_integration/__init__.py                0      0      0      0   100%
+src/flakydetector/ci_integration/github_actions.py         22     22      2      0     0%   3-48
+src/flakydetector/ci_integration/trap_shared_state.py      35      1      0      0    97%   42
+src/flakydetector/classifier/__init__.py                    0      0      0      0   100%
+src/flakydetector/classifier/catboost_model.py            101     10     22      7    86%   55-56, 75, 85, 122, 128, 133, 165, 171, 182
+src/flakydetector/classifier/feature_extractor.py          44      0      8      1    98%   75->73
+src/flakydetector/classifier/schema.py                      6      0      0      0   100%
+src/flakydetector/cli.py                                   66     10     26      6    83%   30, 33-36, 39, 42, 47-48, 62, 79->80, 95->exit
+src/flakydetector/dashboard/__init__.py                     0      0      0      0   100%
+src/flakydetector/dashboard/main.py                       107     11     18      5    87%   42, 43->38, 50->38, 75, 78-80, 88, 92, 122-124, 167
+src/flakydetector/dashboard/models.py                       8      0      0      0   100%
+src/flakydetector/dashboard/routes.py                      72      7     14      4    87%   46, 70, 96, 117-120
+src/flakydetector/dataset/__init__.py                       0      0      0      0   100%
+src/flakydetector/dataset/benchmark.py                    106     13     26      5    86%   35-36, 46-47, 50-51, 70, 76, 81, 111, 129, 169-170
+src/flakydetector/dataset/github_collector.py              80      9     22      7    82%   45, 95->106, 100, 111, 118, 120->119, 122, 127-128, 131, 134
+src/flakydetector/dataset/records.py                       96     15     36     11    79%   48, 50, 52, 58, 74, 79, 86, 91, 118->136, 128->136, 133, 160-165
+src/flakydetector/input.py                                 94     38     36      6    54%   43, 51-88, 93, 103, 117, 123, 125, 134-135
+src/flakydetector/llm.py                                   95     15     20      4    83%   60, 105->107, 121->119, 139->125, 145-178
+src/flakydetector/models/__init__.py                        0      0      0      0   100%
+src/flakydetector/models/domain.py                        144      0      0      0   100%
+src/flakydetector/pytest_flaky_trail/__init__.py            0      0      0      0   100%
+src/flakydetector/pytest_flaky_trail/plugin.py             59      0     10      1    99%   120->exit
+src/flakydetector/pytest_flaky_trail/storage.py            73      3     20      3    94%   35, 92, 199
+src/flakydetector/rag.py                                   85     13     14      5    82%   66-74, 103, 119, 133, 139, 146, 173-174
+src/flakydetector/utils/__init__.py                         0      0      0      0   100%
+src/flakydetector/utils/config.py                          27      2      4      2    87%   35, 37
+src/flakydetector/utils/logger.py                           3      3      0      0     0%   3-7
+src/flakydetector/utils/provenance.py                      24      0      8      0   100%
+---------------------------------------------------------------------------------------------------
+TOTAL                                                    1837    213    506     92    86%

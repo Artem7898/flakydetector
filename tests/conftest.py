@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
 import pytest
 
 
@@ -43,6 +44,7 @@ def sample_ci_log() -> str:
 def ast_analyzer() -> Any:
     """AST analyzer instance."""
     from flakydetector.analyzer.ast_analyzer import ASTAnalyzer
+
     return ASTAnalyzer()
 
 
@@ -50,6 +52,7 @@ def ast_analyzer() -> Any:
 def log_analyzer() -> Any:
     """Log analyzer instance."""
     from flakydetector.analyzer.log_analyzer import LogAnalyzer
+
     return LogAnalyzer()
 
 
@@ -57,5 +60,5 @@ def log_analyzer() -> Any:
 def feature_extractor() -> Any:
     """Feature extractor instance."""
     from flakydetector.classifier.feature_extractor import FeatureExtractor
-    return FeatureExtractor()
 
+    return FeatureExtractor()

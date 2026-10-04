@@ -1,40 +1,11 @@
-# Hexagonal Architecture Details
+# Architecture decisions
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        ADAPTERS (InOut)                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐    │
-│  │ GitHub API  │  │ CI Systems  │  │  FastAPI    │  │ React + Vite │    │
-│  │ Collector   │  │ (Actions)   │  │  (REST)     │  │  (Dashboard) │    │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘    │
-└─────────┼────────────────┼────────────────┼────────────────┼──────────┘
-          │                │                │                │
-          ▼                ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           PORTS (Interfaces)                            │
-│         (AbstractFeatureExtractor, AbstractClassifier, etc.)            │
-└─────────────────────────────────────────────────────────────────────────┘
-          │                │                │                │
-          ▼                ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        CORE DOMAIN (Pure Python)                        │
-│                                                                         │
-│  ┌─────────────────────┐       ┌─────────────────────┐                  │
-│  │   Analysis Engine   │──────>│   Domain Models     │                  │
-│  │ (AST + Log parsing) │       │ (Pydantic: Report,  │                  │
-│  │ Stateless, No I/O!  │<──────│  Pattern, Location) │                  │
-│  └─────────────────────┘       └─────────────────────┘                  │
-│                                                                         │
-│  ┌─────────────────────┐       ┌─────────────────────┐                  │
-│  │  Feature Extractor  │──────>│  NumPy NDArray      │                  │
-│  │ (Pattern -> Vector) │       │  (Typed Memory View)│                  │
-│  └─────────────────────┘       └─────────────────────┘                  │
-└─────────────────────────────────────────────────────────────────────────┘
-          │                │                │                │
-          ▼                ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     INFRASTRUCTURE (OutPorts)                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐    │
-│  │ CatBoost    │  │  SQLite/    │  │  Local FS   │  │ OpenAI API   │    │
-│  │ (.cbm file) │  │  PostgreSQL │  │  (Parquet)  │  │ (LLM backup) │    │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
+Transports (CLI, JSON, multipart file, ZIP) prepare bounded inputs and call one `AnalyzeService`. The service owns fixture selection, evidence attribution, rule scoring, classifier invocation and response status. It depends on a small classifier protocol; HTTP handlers do not construct feature vectors or independently decide whether a test is risky.
+
+AST rules and feature extraction are deterministic, side-effect-free transformations. SQLite, GitHub, CatBoost, LLM and Chroma are adapters. Optional heavy libraries are imported only at their adapter boundary. No source-code import/execution is needed for analysis.
+
+The storage plugin is a per-pytest-session recorder registered with the plugin manager. SQLite uses short transactions and explicitly closes each connection. A phase ledger supports review of a final outcome and retains interrupted attempts.
+
+The API composition root owns bounded thread workers, settings and optional model readiness. A deadline limits the HTTP wait; it does not forcibly terminate a running Python thread. Capacity is not released early on a timeout. `Settings` limits prevent large source/ZIP inputs. Arbitrary supplied code is never run.
+
+This is a pragmatic application-service design, not a claim that every dependency satisfies a formal hexagonal architecture. Adapter boundaries are tested with protocols and injected clients, while actual plugin/wheel paths use subprocess integration tests.

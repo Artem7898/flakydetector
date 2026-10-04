@@ -1,17 +1,7 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.15.15
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
-
-  - repo: https://github.com/RobertCraiworthy/pre-commit-hooks
-    rev: v1.0.0
-    hooks:
-      - id: check-added-large-files
-        args: ['--maxkb=500']
-      - id: check-yaml
-      - id: check-toml
-      - id: end-of-file-fixer
-      - id: trailing-whitespace

@@ -1,0 +1,47 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "dcd81ac5-3d8d-4ba8-85b4-e521e122c774",
+  "request_fingerprint": "1c2d805147f38ec37ab35c77f684e707aaf634c9c7e329657c991f3393eb493e",
+  "source_snapshots": [
+    {
+      "file_path": "test_case.py",
+      "sha256": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a",
+      "content": "def test_ok(): pass\n"
+    }
+  ],
+  "status": "partial",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 0,
+  "files_selected": 1,
+  "files_parsed": 1,
+  "files_rejected": 0,
+  "context_files_selected": 0,
+  "test_candidates": 1,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 0,
+  "tests_with_risk": 0,
+  "evidence_links": 0,
+  "diagnostic_groups": 0,
+  "results": [
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_ok",
+      "file_path": "test_case.py",
+      "verdict": "no_known_risk",
+      "risk_score": 0.0,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": "No compatible model configured"
+}

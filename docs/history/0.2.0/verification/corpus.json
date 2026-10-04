@@ -1,0 +1,100 @@
+{
+  "schema_version": "2.0.0",
+  "analysis_id": "725c5a3b-4089-4fd2-b303-78557bb3f569",
+  "status": "ok",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 2,
+  "results": [
+    {
+      "test_name": "test_network",
+      "file_path": "test_risk.py",
+      "verdict": "risk_detected",
+      "risk_score": 0.6000000000000001,
+      "patterns": [
+        {
+          "pattern_type": "network_call",
+          "category": "network_dependency",
+          "severity": "high",
+          "description": "requests.get: external dependency",
+          "location": {
+            "file_path": "test_risk.py",
+            "line_start": 9,
+            "line_end": 9,
+            "function_name": "test_network",
+            "class_name": null,
+            "location_string": "test_risk.py:9 in test_network"
+          },
+          "code_snippet": "def test_network():\n    requests.get(\"https://example.test\")\n",
+          "confidence": 0.8,
+          "fix_suggestion": "Use controlled responses for unit tests; isolate integration dependencies",
+          "metadata": {
+            "network_call": "requests.get",
+            "is_mocked": false
+          }
+        }
+      ],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": [
+        "Use controlled responses for unit tests; isolate integration dependencies"
+      ]
+    },
+    {
+      "test_name": "test_clock",
+      "file_path": "test_risk.py",
+      "verdict": "risk_detected",
+      "risk_score": 0.45,
+      "patterns": [
+        {
+          "pattern_type": "time_sleep",
+          "category": "timing_dependency",
+          "severity": "medium",
+          "description": "time.sleep: inspect reliance on elapsed time",
+          "location": {
+            "file_path": "test_risk.py",
+            "line_start": 13,
+            "line_end": 13,
+            "function_name": "test_clock",
+            "class_name": null,
+            "location_string": "test_risk.py:13 in test_clock"
+          },
+          "code_snippet": "def test_clock():\n    time.sleep(0.01)\n",
+          "confidence": 0.9,
+          "fix_suggestion": "Use explicit completion conditions; a delay alone does not prove flakiness",
+          "metadata": {}
+        }
+      ],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": [
+        "Use explicit completion conditions; a delay alone does not prove flakiness"
+      ]
+    },
+    {
+      "test_name": "test_clean",
+      "file_path": "test_risk.py",
+      "verdict": "no_known_risk",
+      "risk_score": 0.0,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [],
+  "feature_schema_version": "2.0.0",
+  "model_version": null,
+  "degraded_reason": null
+}

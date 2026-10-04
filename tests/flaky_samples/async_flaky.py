@@ -1,6 +1,7 @@
 """Example of async flaky test patterns."""
 
 import asyncio
+
 import pytest
 
 

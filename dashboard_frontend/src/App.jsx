@@ -1,368 +1,100 @@
-import {useState} from 'react';
-import {BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell} from 'recharts';
-import {analyzeCode, searchSimilarTests} from './api';
-import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
-import {vscDarkPlus} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import {useEffect, useReducer, useRef} from 'react';
+import {analyzeCode, analyzeUpload, searchSimilarTests} from './api.js';
+import {errorText, validateAnalysis, validateSearch} from './contract.js';
+import {analysisIsStale, captureSnapshot, initialState, reducer, searchIsStale} from './state.js';
+import Results, {ResultBoundary} from './Results.jsx';
 import './App.css';
 
-const SEVERITY_COLORS = {
-    low: '#4ade80',
-    medium: '#facc15',
-    high: '#f97316',
-    critical: '#ef4444',
-};
-
-const DEFAULT_CODE = `import asyncio
-import time
-from datetime import datetime
-
-def test_flaky_example():
-    start = time.time()
-    time.sleep(0.1)
-    assert time.time() - start < 0.15
-
-async def test_async_race():
-    counter = {"val": 0}
-    async def inc():
-        counter["val"] += 1
-    await asyncio.gather(*[inc() for _ in range(10)])
-    assert counter["val"] == 10
-`;
-
 export default function App() {
-    const [code, setCode] = useState(DEFAULT_CODE);
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState(null);
-    const [error, setError] = useState(null);
-    const [ragQuery, setRagQuery] = useState("");
-    const [ragResults, setRagResults] = useState(null);
-    const [ragLoading, setRagLoading] = useState(false);
-    const [ragError, setRagError] = useState(null);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const sequence = useRef(0);
+  const analysisController = useRef(null);
+  const searchController = useRef(null);
+  const uploadInput = useRef(null);
+  useEffect(() => () => { analysisController.current?.abort(); searchController.current?.abort(); }, []);
+  const edit = (field, value) => dispatch({type: 'edit', field, value});
 
-    const handleAnalyze = async () => {
-        setLoading(true);
-        setError(null);
-        setResult(null);
-
-        try {
-            const response = await analyzeCode({
-                file_content: code,
-                file_path: "test_sample.py",
-                use_ml_classifier: true
-            });
-            setResult(response.data);
-        } catch (err) {
-            setError(err.response?.data?.detail || err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleRAGSearch = async () => {
-        if (!ragQuery.trim()) return;
-        setRagLoading(true);
-        setRagError(null);
-        setRagResults(null);
-        try {
-            const response = await searchSimilarTests(ragQuery);
-            setRagResults(response.data);
-        } catch (err) {
-            console.error("RAG Search Error: ", err);
-            setRagError(err.response?.data?.detail || err.message || "Failed to search vectors");
-        } finally {
-            setRagLoading(false);
-        }
-    };
-
-    // Aggregate chart data by severity
-    const chartData = result?.flaky_tests?.[0]?.patterns?.reduce((acc, p) => {
-        const existing = acc.find(item => item.name === p.severity);
-        if (existing) {
-            existing.count += 1;
-        } else {
-            acc.push({name: p.severity, count: 1});
-        }
-        return acc;
-    }, []) || [];
-
-    const flakyProbability = result?.flaky_tests?.[0]?.flaky_probability ?? 0;
-    const isFlaky = result?.flaky_tests?.[0]?.is_flaky ?? false;
-    const patterns = result?.flaky_tests?.[0]?.patterns ?? [];
-    const recommendations = result?.flaky_tests?.[0]?.recommendations ?? [];
-
-    return (
-        <div className="dashboard-container">
-            <header className="app-header">
-                <div className="header-content">
-                    <div className="logo">
-                        <span className="logo-icon"></span>
-                        <h1>FlakyDetector</h1>
-                    </div>
-                    <p>Scientific-grade AST &amp; ML Flaky Test Analysis</p>
-                </div>
-            </header>
-
-            <main className="app-main">
-                <section className="input-section">
-                    <div className="section-header">
-                        <h2>Source Code</h2>
-                        <span className="lang-badge">Python</span>
-                    </div>
-                    <textarea
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        placeholder="Paste your Python test code here..."
-                        rows={14}
-                        disabled={loading}
-                        spellCheck={false}
-                        aria-label="Python test code input"
-                    />
-                    <div className="action-bar">
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={loading || !code.trim()}
-                            className={loading ? 'analyzing' : ''}
-                        >
-                            {loading ? (
-                                <>
-                                    <span className="spinner"/>
-                                    Analyzing AST &amp; ML...
-                                </>
-                            ) : (
-                                'Run Analysis'
-                            )}
-                        </button>
-                    </div>
-                </section>
-
-                {error && (
-                    <div className="error-box" role="alert" aria-live="assertive">
-                        <strong>Error</strong>
-                        <p>{error}</p>
-                    </div>
-                )}
-
-                {result && (
-                    <div className="results-section" aria-live="polite">
-                        {/* Metrics Overview */}
-                        <section className="metrics-grid">
-                            <article className="card metric-card">
-                                <h3>Flaky Probability</h3>
-                                <div
-                                    className="big-number"
-                                    style={{
-                                        color: flakyProbability > 0.7 ? '#ef4444' : '#4ade80'
-                                    }}
-                                >
-                                    {(flakyProbability * 100).toFixed(1)}%
-                                </div>
-                                <div className="metric-bar">
-                                    <div
-                                        className="metric-bar-fill"
-                                        style={{
-                                            width: `${flakyProbability * 100}%`,
-                                            backgroundColor: flakyProbability > 0.7 ? '#ef4444' : '#4ade80'
-                                        }}
-                                    />
-                                </div>
-                            </article>
-
-                            <article className="card metric-card">
-                                <h3>Patterns Found</h3>
-                                <div className="big-number">{result.total_patterns_found}</div>
-                                <span className="metric-sub">detected anti-patterns</span>
-                            </article>
-
-                            <article className="card metric-card">
-                                <h3>Verdict</h3>
-                                <div className={`status-badge ${isFlaky ? 'flaky' : 'stable'}`}>
-                                    {isFlaky ? 'FLAKY' : 'STABLE'}
-                                </div>
-                                <span className="metric-sub">
-                                    {isFlaky ? 'Requires attention' : 'No issues detected'}
-                                </span>
-                            </article>
-                        </section>
-
-                        {/* Severity Chart */}
-                        {chartData.length > 0 && (
-                            <section className="card chart-container">
-                                <div className="section-header">
-                                    <h3>Severity Distribution</h3>
-                                </div>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <BarChart data={chartData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false}/>
-                                        <XAxis
-                                            dataKey="name"
-                                            stroke="#64748b"
-                                            tick={{fill: '#94a3b8', fontSize: 12}}
-                                            axisLine={{stroke: '#334155'}}
-                                        />
-                                        <YAxis
-                                            allowDecimals={false}
-                                            stroke="#64748b"
-                                            tick={{fill: '#94a3b8', fontSize: 12}}
-                                            axisLine={{stroke: '#334155'}}
-                                        />
-                                        <Tooltip
-                                            cursor={{fill: 'rgba(148, 163, 184, 0.1)'}}
-                                            contentStyle={{
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid #334155',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)'
-                                            }}
-                                            itemStyle={{color: '#f8fafc'}}
-                                            labelStyle={{color: '#94a3b8', textTransform: 'capitalize'}}
-                                        />
-                                        <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                                            {chartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`}
-                                                      fill={SEVERITY_COLORS[entry.name] || '#888'}/>
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </section>
-                        )}
-
-                        {/* Detected Patterns */}
-                        {patterns.length > 0 && (
-                            <section className="card patterns-card">
-                                <div className="section-header">
-                                    <h3>Detected Patterns</h3>
-                                    <span className="count-badge">{patterns.length}</span>
-                                </div>
-                                <ul className="pattern-list">
-                                    {patterns.map((p, idx) => (
-                                        <li key={idx} className={`pattern-item severity-${p.severity}`}>
-                                            <div className="pattern-header">
-                                                <strong className="pattern-type">{p.pattern_type}</strong>
-                                                <span className={`badge badge-${p.severity}`}>{p.severity}</span>
-                                            </div>
-                                            <p className="pattern-desc">{p.description}</p>
-                                            <div className="code-block-wrapper">
-                                                <SyntaxHighlighter
-                                                    language="python"
-                                                    style={vscDarkPlus}
-                                                    customStyle={{
-                                                        margin: 0,
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.8rem',
-                                                        lineHeight: '1.5'
-                                                    }}
-                                                >
-                                                    {p.code_snippet}
-                                                </SyntaxHighlighter>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </section>
-                        )}
-
-                        {/* Recommendations */}
-                        {recommendations.length > 0 && (
-                            <section className="card recommendations">
-                                <div className="section-header">
-                                    <h3>Recommendations</h3>
-                                </div>
-                                <ul className="recommendation-list">
-                                    {recommendations.map((rec, idx) => (
-                                        <li key={idx}>{rec}</li>
-                                    ))}
-                                </ul>
-                            </section>
-                        )}
-
-                        {/* RAG Semantic Search Section */}
-                        <section className="card" style={{marginTop: '1.5rem', borderColor: 'rgba(56, 189, 248, 0.3)'}}>
-                            <div className="section-header">
-                                <h3>RAG Similar Test Search (ChromaDB)</h3>
-                                <span className="lang-badge">Vector DB</span>
-                            </div>
-                            <p style={{color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem'}}>
-                                Find tests with semantically similar root causes (e.g., "race conditions", "state
-                                leaks").
-                            </p>
-
-                            <div style={{display: 'flex', gap: '0.5rem', marginBottom: '1rem'}}>
-                                <input
-                                    type="text"
-                                    value={ragQuery}
-                                    onChange={(e) => setRagQuery(e.target.value)}
-                                    placeholder="e.g. Tests failing due to random numbers or async state..."
-                                    style={{
-                                        flex: 1,
-                                        background: 'var(--card-bg)',
-                                        color: 'var(--text-main)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        padding: '0.75rem 1rem',
-                                        fontSize: '0.9rem',
-                                        outline: 'none'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleRAGSearch}
-                                    disabled={ragLoading || !ragQuery.trim()}
-                                    style={{padding: '0.75rem 1.5rem', fontSize: '0.9rem'}}
-                                >
-                                    {ragLoading ? 'Searching...' : 'Search Vectors'}
-                                </button>
-                            </div>
-
-                            {ragError && (
-                                <div className="error-box" role="alert" style={{marginTop: '1rem'}}>
-                                    <strong>RAG Search Error</strong>
-                                    <p>{ragError}</p>
-                                    <small style={{display: 'block', marginTop: '0.5rem', opacity: 0.8}}>
-                                        💡 Tip: Make sure you ran <code>python scripts/build_rag.py</code> to create the vector database
-                                    </small>
-                                </div>
-                            )}
-
-                            {ragResults && ragResults.results.length > 0 && (
-                                <ul className="pattern-list">
-                                    {ragResults.results.map((res, idx) => (
-                                        <li key={idx} className="pattern-item severity-medium"
-                                            style={{borderLeftColor: 'var(--accent)'}}>
-                                            <div className="pattern-header">
-                                                <strong className="pattern-type" style={{fontSize: '0.85rem'}}>
-                                                    {res.nodeid}
-                                                </strong>
-                                                <span className="count-badge" style={{
-                                                    background: 'rgba(56, 189, 248, 0.2)',
-                                                    color: 'var(--accent)'
-                                                }}>
-                                                    {res.similarity_score}% match
-                                                </span>
-                                            </div>
-                                            <p className="pattern-desc" style={{fontSize: '0.8rem'}}>
-                                                {res.explanation || "No LLM explanation available for this test."}
-                                            </p>
-                                            <div style={{fontSize: '0.75rem', color: 'var(--text-dim)'}}>
-                                                Flakiness Rate: <strong>{res.flakiness_rate}%</strong>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-
-                            {ragResults && ragResults.results.length === 0 && (
-                                <p style={{color: 'var(--text-dim)', textAlign: 'center', padding: '1rem'}}>
-                                    No similar tests found in the vector database.
-                                </p>
-                            )}
-                        </section>
-                    </div>
-                )}
-            </main>
-
-            <footer className="app-footer">
-                <p>FlakyDetector © AST + ML Powered © {new Date().getFullYear()}</p>
-            </footer>
+  async function analyze() {
+    analysisController.current?.abort();
+    const controller = new AbortController(); analysisController.current = controller;
+    const id = ++sequence.current;
+    const snapshot = captureSnapshot(state);
+    dispatch({type: 'analysisStart', id, snapshot});
+    function accept(data) {
+      const payload = validateAnalysis(data);
+      if (snapshot.mode === 'code' && !payload.source_snapshots.some(source =>
+        source.file_path === snapshot.fileName && source.content === snapshot.code)) {
+        throw new Error('Response source does not match the submitted snapshot. No result was accepted.');
+      }
+      dispatch({type: 'analysisSuccess', id, payload});
+    }
+    try {
+      const response = state.mode === 'file'
+        ? await analyzeUpload(state.file, state.useMl, state.token, controller.signal)
+        : await analyzeCode({file_content: snapshot.code, file_path: snapshot.fileName, use_ml_classifier: snapshot.useMl}, state.token, controller.signal);
+      accept(response.data);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      // Syntax/coverage failures are structured results, not a silent blank screen.
+      if (error?.response?.status === 422 && error.response.data?.detail?.schema_version) {
+        try { accept(error.response.data.detail); return; }
+        catch (invalid) { dispatch({type: 'analysisFailure', id, error: errorText(invalid)}); return; }
+      }
+      dispatch({type: 'analysisFailure', id, error: errorText(error)});
+    }
+  }
+  async function search() {
+    searchController.current?.abort();
+    const controller = new AbortController(); searchController.current = controller;
+    const id = ++sequence.current;
+    dispatch({type: 'searchStart', id});
+    try {
+      const response = await searchSimilarTests(state.query, state.token, controller.signal);
+      dispatch({type: 'searchSuccess', id, items: validateSearch(response.data)});
+    } catch (error) {
+      if (!controller.signal.aborted) dispatch({type: 'searchFailure', id, error: errorText(error)});
+    }
+  }
+  function clearFile() {
+    if (uploadInput.current) uploadInput.current.value = '';
+    dispatch({type: 'clearFile'});
+  }
+  const validInput = state.mode === 'file' ? !!state.file : !!state.code.trim();
+  return <div className="dashboard">
+    <header className="app-header"><a className="brand" href="/">Flaky<span>Detector</span><small>0.2.1 RC1</small></a><span className="header-note">Static risks. Traceable evidence.</span></header>
+    <main className="workspace">
+      <aside className="input-panel">
+        <p className="eyebrow">ANALYSIS WORKSPACE</p><h1>Inspect the risk.<br/>Keep the evidence.</h1>
+        <p className="muted">Inspect Python source without executing it. Run history and calibrated probabilities are separate evidence layers.</p>
+        <div className="mode-switch" role="group" aria-label="Input mode">
+          <button className={state.mode === 'code' ? 'active' : ''} aria-pressed={state.mode === 'code'} onClick={() => edit('mode', 'code')}>Paste code</button>
+          <button className={state.mode === 'file' ? 'active' : ''} aria-pressed={state.mode === 'file'} onClick={() => edit('mode', 'file')}>File / ZIP</button>
         </div>
-    );
+        {state.mode === 'code' ? <label className="editor-label">test_sample.py<textarea aria-label="Python test source" value={state.code} onChange={event => edit('code', event.target.value)} rows={15} spellCheck={false}/></label>
+          : <div className="upload-box"><label>Python file or ZIP<input ref={uploadInput} aria-label="Source file or ZIP" type="file" accept=".py,.zip" onChange={event => edit('file', event.target.files?.[0] ?? null)}/></label>
+            {state.file && <p>{state.file.name} · {state.file.size.toLocaleString()} bytes</p>}<button className="secondary" onClick={clearFile}>Clear file and return to code</button></div>}
+        <label className="check"><input type="checkbox" checked={state.useMl} onChange={event => edit('useMl', event.target.checked)}/> Request evaluated ML model</label>
+        <p className="field-help">Optional. Missing models are reported as degraded mode; rules remain available.</p>
+        <details className="credentials"><summary>API access token</summary><label>Token, if required<input type="password" autoComplete="off" value={state.token} onChange={event => edit('token', event.target.value)}/></label><p className="field-help">Kept in memory only. Never included in exported analysis snapshots.</p></details>
+        <div className="actions"><button className="primary" disabled={!validInput} onClick={analyze}>{state.pending ? 'Restart analysis' : 'Run analysis'}</button>
+          {state.pending && <button className="secondary" onClick={() => { analysisController.current?.abort(); dispatch({type: 'analysisCancel'}); }}>Cancel</button>}</div>
+        {state.pending && <p role="status">Analyzing the submitted snapshot… You can continue editing.</p>}
+        {state.error && <div className="notice danger" role="alert"><strong>Analysis unavailable</strong><pre>{state.error}</pre></div>}
+      </aside>
+      <div className="output-panel">
+        {state.result ? <ResultBoundary key={state.result.payload.analysis_id}><Results payload={state.result.payload} snapshot={state.result.snapshot} stale={analysisIsStale(state)}/></ResultBoundary>
+          : <section className="empty-state"><span className="eyebrow">NO ANALYSIS YET</span><h2>A warning should have a location.<br/>A number should have a meaning.</h2><p>Run a scan to inspect candidates, unique risk locations, fixture context and source evidence. An empty history is not a zero-percent flake rate.</p></section>}
+        <section className="card related-section"><p className="eyebrow">OPTIONAL · RETRIEVAL</p><h2>Related explanations</h2><p className="muted">Retrieved explanations are unverified hypotheses. This is not automatic causal diagnosis.</p>
+          <div className="search-row"><label>Search<input aria-label="Related explanation query" value={state.query} onChange={event => dispatch({type: 'query', value: event.target.value})} maxLength={2000}/></label><button className="secondary" onClick={search} disabled={!state.query.trim()}>{state.searchPending ? 'Restart search' : 'Search'}</button></div>
+          {state.searchPending && <p role="status">Searching captured query…</p>}
+          {state.searchError && <p className="notice warning" role="alert">{state.searchError}</p>}
+          {state.hits && <div>{searchIsStale(state) && <p className="notice warning" role="status" data-testid="stale-search">Outdated search. The results below belong to the previous query or access settings.</p>}
+            <p>Results for: <strong>{state.hits.query}</strong></p>
+            {state.hits.items.map((hit, index) => <article key={`${hit.identity}:${index}`} className="finding"><h3>{hit.repo}: {hit.nodeid}</h3><p>{hit.explanation}</p><p>{hit.fix_strategy}</p><p>{hit.metric} distance: {hit.distance.toFixed(4)} · evidence: {hit.evidence_ids.join(', ')}</p></article>)}
+            {state.hits.items.length === 0 && <p>No related explanations found.</p>}</div>}
+        </section>
+      </div>
+    </main>
+    <footer>FlakyDetector · Research-oriented test reliability tooling · Static risk is not observed nondeterminism.</footer>
+  </div>;
 }

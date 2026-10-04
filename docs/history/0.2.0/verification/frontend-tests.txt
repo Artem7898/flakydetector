@@ -1,0 +1,16 @@
+
+> flakydetector-dashboard@0.2.0 test
+> node --test src/contract.test.js
+
+✔ does not silently accept the legacy probability contract (0.946021ms)
+✔ partial results retain inconclusive and nullable score (0.164528ms)
+✔ structured API errors are renderable text (0.185098ms)
+✔ accepts an actual serialized backend response (7.739255ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.132331

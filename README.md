@@ -1,256 +1,124 @@
-<div align="center">
-  <img src="./assets/flakydetector_logo.png" alt="FlakyDetector Logo" width="300">
-</div>
+# FlakyDetector 0.2.1rc1
 
-<div align="center">
+**Audit-remediation release candidate for the supplied 0.2.0 audit, not a stable release.** Python backend by Artem Alimpiev.
 
-# 🔬 FlakyDetector
+FlakyDetector inspects Python test source, preserves attributable evidence and optionally records pytest attempts. A static pattern is **not** proof of intermittent failure. `no_known_risk` is not “stable”; `risk_score` is a heuristic index, not a probability. No evaluated production model or real-world accuracy claim is shipped.
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![CatBoost](https://img.shields.io/badge/CatBoost-FFCC00.svg?logo=catboost&logoColor=black)](https://catboost.ai/)
-[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg?logo=docker&logoColor=white)](https://www.docker.com/)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF.svg?logo=githubactions&logoColor=white)](https://github.com/features/actions)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+This candidate changes data-integrity boundaries, release checks and the analysis workspace. See [the implementation status](docs/IMPLEMENTATION_STATUS.RU.md), [migration guide](docs/MIGRATION_0.2.1.md), [limitations](docs/LIMITATIONS.md) and [benchmark protocol](docs/BENCHMARK.md). Historical validation in `docs/history/0.2.0/` does not certify these bytes. Verification of a final ZIP is produced **beside** the ZIP and includes its SHA-256.
 
-**Scientific-grade Flaky Test Detection using AST Analysis & Machine Learning**
+## Run the application
 
-Explainable ML · AST Pattern Matching · 37D Feature Space · Test Smells
-
-</div>
-
----
-
-## 🧠 About
-
-**FlakyDetector** is a research-oriented tool designed to identify non-deterministic (flaky) tests in Python codebases. Instead of relying on historical CI execution data, the analyzer parses the Abstract Syntax Tree (AST) of the source code, extracts scientific features, and classifies them using a CatBoost ML model.
-
-Unlike ordinary linters, FlakyDetector hunts for architectural anti-patterns: race conditions, resource leaks, global state dependencies, and high cyclomatic complexity (**Test Smells**).
-
----
-
-## ✨ Key Features
-
-| Feature | Description                                                                                                         |
-|---------|---------------------------------------------------------------------------------------------------------------------|
-| **🧬 AST Pattern Matching** | Detection of 11+ anti-patterns (`time.sleep`, `datetime.now()`, global variable mutations, unmocked network calls). |
-| **🧠 ML Classification** | Explainable CatBoost model trained on a 42-dimensional feature vector.                                               |
-| **📊 Test Smells Analysis** | Identifies tests with high cyclomatic complexity (>10) that are prone to flakiness.                                 |
-| **🖥️ Interactive Dashboard** | React + Recharts frontend with severity distribution visualization and syntax highlighting.                         |
-| **📂 CLI Scanner** | Powerful directory scanning with beautiful tabular terminal output (rich).                                          |
-| **⚙️ CI/CD Integration** | Ready-to-use GitHub Actions workflow that blocks Pull Requests when critical patterns are detected.                 |
-| **🐳 Production Infrastructure** | Docker, `uv` for lightning-fast builds, pre-commit hooks (ruff, pyright).                                           |
-| 🔍 RAG Vector Search | ChromaDB + LLM integration for semantic search of tests with similar flakiness patterns.                            |
----
-
-## 🏗️ Architecture
-
-### Clean Architecture (Hexagonal)
-
-```mermaid
-flowchart TB
-    subgraph Adapters ["ADAPTERS (In/Out)"]
-        GH[GitHub API Collector]
-        CI[CI Systems<br/>GitHub Actions]
-        CLI[CLI Scanner<br/>Rich Tables]
-        API[FastAPI REST]
-        UI[React + Vite<br/>Dashboard]
-    end
-
-    subgraph Ports ["PORTS (Interfaces)"]
-        IF1[AbstractFeatureExtractor]
-        IF2[AbstractClassifier]
-    end
-
-    subgraph Core ["CORE DOMAIN (Pure Python)"]
-        AE[Analysis Engine<br/>AST + Log parsing<br/>Stateless, No I/O]
-        DM[Domain Models<br/>Pydantic v2: Report,<br/>Pattern, Location]
-        FE[Feature Extractor<br/>Pattern -> Vector]
-        ND[NumPy NDArray<br/>Typed Memory View]
-    end
-
-    subgraph Infra ["INFRASTRUCTURE (OutPorts)"]
-        CB[CatBoost<br/>.cbm file]
-        DB[(SQLite /<br/>PostgreSQL)]
-        FS[Local FS<br/>Parquet]
-    end
-
-    GH --> Ports
-    CLI --> AE
-    CI --> CLI
-    API --> Ports
-    UI --> API
-
-    Ports --> Core
-    AE <--> DM
-    FE --> ND
-
-    Core --> Infra
-    CB --> Core
-    DB --> Core
-    FS --> Core
-```
-
----
-
-## 🚀 Quick Start
-
-**Prerequisites:** Python 3.12+, Node.js 18+ (for UI), Docker (optional).
-
-### Option 1: Local Setup (via uv)
+Python 3.12+ and Node.js 22. The supplied lock files are retained; dependencies must be available from your package registries.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Artem7898/flakydetector
-cd flakydetector
-
-# 2. Install uv (modern package manager) and dependencies
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# 3. Generate synthetic dataset and train the ML model
-python scripts/train_model.py
-
-# 4. Start the API server
-uvicorn flakydetector.dashboard.main:app --reload --port 8001
+uv sync --locked --extra api --extra dev --extra ml --extra github
+uv run --frozen uvicorn flakydetector.dashboard.main:app --host 127.0.0.1 --port 8001
 ```
 
-### Option 2: Docker (recommended for isolation)
-
-```bash
-# Builds the image and starts the backend on port 8001
-docker-compose up --build
-```
-
-### Start Frontend (in a new terminal)
+In another terminal:
 
 ```bash
 cd dashboard_frontend
-npm install
+npm ci --ignore-scripts
 npm run dev
 ```
 
-🔗 Open http://localhost:3000 — the interactive dashboard is ready.
+Open `http://127.0.0.1:3000`. API docs: `http://127.0.0.1:8001/api/docs`.
+For a minimal application without development or ML dependencies, use `uv sync --locked --extra api` instead. Static analysis needs no model or API token; optional integrations are unavailable unless explicitly configured.
 
----
-
-## 📂 Folder Scanning & CI/CD
-
-### CLI Scanning
-
-The analyzer is not limited to the web interface. You can point it at any test directory:
+For the combined application:
 
 ```bash
-uv run python scripts/scan_folder.py ./my_project/tests/
+docker compose up --build
 ```
 
-**Sample output:**
+The combined container serves the UI and API at `http://127.0.0.1:8001`. The Docker scenario must still pass the artifact-bound smoke gate on a Docker-capable host. A Dockerfile is not a build result.
 
-```
-🔍 Scanning: ./my_project/tests/ ...
+## Workspace
 
-                               Flaky Patterns Detected
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
-┃ File               ┃ Line  ┃ Pattern             ┃ Severity   ┃ Confidence┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
-│ test_api.py        │     3 │ time_sleep          │   MEDIUM   │       90% │
-└────────────────────┴───────┴─────────────────────┴────────────┴───────────┘
-```
+Paste code or choose a Python file / ZIP. Switching back clears the upload without discarding the code draft. Editing the source, file, mode or ML settings marks the old analysis as outdated. Requests use immutable snapshots and latest-request identifiers; stale replies cannot replace newer results.
 
-### GitHub Actions Integration
+The output distinguishes selected/parsed/rejected files, static test candidates, affected tests, unique risk locations and evidence links. An evidence card opens the exact captured source and highlights the finding. Exports **include source code**: review them before sharing. The token remains in memory and is not exported.
 
-The tool automatically blocks Pull Requests when critical anti-patterns are introduced. The workflow is already included in `.github/workflows/flaky_detection.yml`:
+The optional search panel labels retrieved explanations as unverified hypotheses. Changing a query marks its old result as outdated. Run-history statistics remain unavailable rather than being replaced with fabricated zeroes.
 
-```yaml
-- name: Run FlakyDetector
-  run: uv run python scripts/scan_folder.py ./tests --fail-on-critical
-```
-
-If a pattern with `severity: CRITICAL` is found, the step exits with code 1 and the merge is blocked.
-
----
-
-## 🔬 Scientific Methodology
-
-The system converts source code into a mathematical representation:
-
-| Feature Group | Count | Description |
-|---------------|-------|-------------|
-| **AST Features** | 16 | Counters for specific anti-patterns (e.g., `ast_time_sleep: 1.0`). |
-| **Category Features** | 9 | Aggregate scores for root causes (Timing, State, Network). |
-| **Test Smells** | 1 | Cyclomatic Complexity of the test function. |
-| **Fixture Analysis (NEW)** | 5 |  Fixture analysis: scope="session", no yield, return of mutable literals.|
-| **Derived Features** | 3 | Mathematical ratios: `ast_to_log_ratio`, `pattern_diversity`. |
-| **Confidence Scores** | 8 | Maximum and average detector certainties. |
-
-**Resulting vector:** 42 features are fed into CatBoost, which provides both classification accuracy and **Feature Importance** for scientific interpretability of results.
-RAG Pipeline (NEW): For semantic trail analysis, integration with local LLM (Ollama) and ChromaDB vector database is implemented, allowing you to search for tests with similar causes of instability.
----
-
-## 🛠 Development
-
-The project adheres to strict quality standards:
-
-| Tool | Purpose |
-|------|---------|
-| **ruff** | Formatting and linting (replaces black, isort, flake8). |
-| **pyright** | Strict typing in strict mode (Pydantic v2, Type Hints). |
-| **pytest + pytest-asyncio** | Unit and integration tests. |
-| **pre-commit** | Automated checks on every commit. |
+## CLI and HTTP
 
 ```bash
-# Run linting
-pre-commit run --all-files
-
-# Run tests
-uv run pytest tests/unit/ -v
+uv run --frozen flakydetector tests/corpus --format json --fail-on none
+uv run --frozen flakydetector /path/to/project/tests --format json --fail-on high
 ```
 
----
+CLI accepts a file, directory or ZIP. Directory/ZIP selection includes `test_*.py`, `*_test.py` and ancestor `conftest.py`. Submitted Python is parsed, never imported/executed. Uploaded ZIP entries are read in memory.
 
-## 📚 Citation
+Exit codes: `0` completed and passed the selected rule policy; `1` policy violation; `2` error, incomplete or degraded analysis. `--fail-on none` disables the risk gate, not errors.
 
-If you use FlakyDetector in your research, please cite:
+HTTP endpoints share `AnalyzeService`:
 
-```bibtex
-@software{flakydetector2026,
-  author = {Research Team},
-  title = {FlakyDetector: Scientific-grade AST & ML Flaky Test Detection},
-  year = {2026},
-  url = {https://github.com/Artem7898/flakydetector}
-}
+- `POST /api/v1/analyze`: JSON `file_content`, optional `file_path`, `log_content`, `use_ml_classifier`.
+- `POST /api/v1/analyze/file` and `/directory`: multipart `.py` or `.zip`; optional `use_ml` query parameter.
+- `GET /health`, `/ready`, `/api/v1/features/importance`, `/api/v1/search_similar`.
+
+`GET /api/v1/stats/{repository}` explicitly returns 501. Model/RAG endpoints report unavailability instead of inventing a result. See [API contract 2.1](docs/api_reference.md).
+
+## Record comparable pytest observations
+
+The plugin is opt-in. Prefer a new database for newly recorded v3 evidence:
+
+```bash
+uv run --frozen pytest tests --flaky-trail \
+  --flaky-trail-db ./flaky_trails_v3.db \
+  --flaky-trail-repo example/project \
+  --flaky-trail-env local-services-v1-seed-42
 ```
 
----
+Use a non-secret `--flaky-trail-env` identity for controlled external service/data/seed state. The recorder stores the effective pytest configuration fingerprint, collection order, worker identity and attempt phases. This is comparability under **recorded** context, not a proof that every external input is controlled.
 
-## 👨‍💻 Author
+Schema-2 databases migrate additively to schema 3. Existing rows retain `provenance_version=0`; they are preserved but cannot silently become trusted training labels. Re-record executions rather than editing old provenance flags.
 
-**Artem Alimpiev** — Python Developer
+```bash
+uv run --frozen python scripts/extract_dataset.py \
+  --db flaky_trails_v3.db --source-root . \
+  --output /tmp/flaky-observations.jsonl --min-runs 5
+```
 
-- 🐙 GitHub: [Artem7898](https://github.com/Artem7898)
-- 💼 LinkedIn: [artem-alimpiev](https://www.linkedin.com/in/artem-alimpiev/)
-- 📧 Email: [alimpievne@gmail.com](mailto:alimpievne@gmail.com)
-- https://orcid.org/0009-0007-6740-7242
-- https://zenodo.org/records/20042797
-- https://doi.org/10.5281/zenodo.20043002 new
+The feature vector remains 42-dimensional but its semantic schema is **2.1.0**. Old model manifests are rejected. Training additionally requires reviewed labels, matching source and independent repository/target-clone splits. This candidate does not generate or substitute a synthetic production benchmark.
 
+## Verify and package
 
----
+```bash
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+uv run --frozen pyright
+uv run --frozen pytest -q
+(cd dashboard_frontend && REQUIRE_RENDER_TESTS=1 npm test && npm run build)
+uv build
+uv run --frozen python scripts/installed_wheel_smoke.py
+python scripts/build_release.py --output artifacts/flakydetector-0.2.1rc1.zip
+python scripts/check_release.py artifacts/flakydetector-0.2.1rc1.zip
+python scripts/verify_release.py artifacts/flakydetector-0.2.1rc1.zip \
+  --output artifacts/verification --python 3.12
+```
 
-## 📄 License
+The verifier extracts **the final ZIP**, runs real commands, records failures/blocks and verifies the shipped source files were not altered. `--without-docker` is explicitly a partial verification. Real React rendering is mandatory in the complete gate; a local Node-only run reports the rendering test as skipped when npm dependencies are unavailable.
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+To run the container gate alone:
 
----
+```bash
+python scripts/container_smoke.py artifacts/flakydetector-0.2.1rc1.zip \
+  --report artifacts/container-smoke.json
+```
 
-<div align="center">
+The release manifest detects drift/corruption, not publisher authenticity. Use the accompanying checksum to identify the archive you tested. Review optional live-provider, retry-plugin and browser checks separately from the core gates.
 
-*Built for researchers and engineers. AST + ML. Precise. Reproducible.*
+[Repository](https://github.com/Artem7898/flakydetector) · MIT License · Artem Alimpiev
 
-</div>
+### Optional real-browser smoke
 
-<div align="center">
-  <img src="./assets/demo.gif" alt="FlakyDetector Demo" width="700">
-  <p><em>FlakyDetector Demonstration: tests</em></p>
-</div>
+With the local application already running and Playwright/Chromium installed in a separate tooling environment:
+
+```bash
+python scripts/browser_smoke.py --url http://127.0.0.1:8001 --output artifacts/browser
+```
+
+Use port 3000 for the Vite dev server. This gate exercises real HTTP analysis, source navigation, stale results, settings changes, file/clear transitions and syntax-error rendering. It writes screenshots only when actually run; missing tooling is recorded as blocked. It is not included in the core locked Python dependencies and must not be described as passed merely because its script exists.

@@ -1,0 +1,70 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "ad1f2a2f-0049-40b5-9b29-4ab40e40ceff",
+  "request_fingerprint": "30c3071812cdf094703e675154e5b5b0b879e83a8a299b74c0eb50f5dc74a337",
+  "source_snapshots": [
+    {
+      "file_path": "test_case.py",
+      "sha256": "acc6cea497935ae04d5505e95f1d264c9d12161ca862e79ed0e6e9ac88d5575a",
+      "content": "def broken(:"
+    }
+  ],
+  "status": "error",
+  "total_files_analyzed": 0,
+  "total_patterns_found": 0,
+  "files_selected": 1,
+  "files_parsed": 0,
+  "files_rejected": 1,
+  "context_files_selected": 0,
+  "test_candidates": 0,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 0,
+  "tests_with_risk": 0,
+  "evidence_links": 0,
+  "diagnostic_groups": 1,
+  "results": [
+    {
+      "result_kind": "module",
+      "test_name": "<module>",
+      "file_path": "test_case.py",
+      "verdict": "inconclusive",
+      "risk_score": null,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [
+        {
+          "code": "syntax_error",
+          "message": "invalid syntax",
+          "file_path": "test_case.py",
+          "line": 1,
+          "level": "error"
+        }
+      ],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "syntax_error",
+      "message": "invalid syntax",
+      "file_path": "test_case.py",
+      "line": 1,
+      "level": "error"
+    },
+    {
+      "code": "no_tests",
+      "message": "No statically discoverable test functions; analysis coverage is empty",
+      "file_path": "",
+      "line": null,
+      "level": "error"
+    }
+  ],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": null
+}

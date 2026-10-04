@@ -1,163 +1,185 @@
-"""CatBoost-based flaky test classifier."""
+"""Optional ML adapter with a verified artifact/schema boundary."""
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Callable, Sequence
+from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Protocol, cast
+from uuid import uuid4
 
-import numpy as np
-from catboost import CatBoostClassifier, Pool
-from numpy.typing import NDArray
+from pydantic import Field
 
-from flakydetector.classifier.feature_extractor import FEATURE_NAMES, FeatureExtractor
-from flakydetector.models.domain import FlakyTestReport, FlakyCategory, FlakySeverity
-from flakydetector.utils.logger import get_logger
+from flakydetector.classifier.schema import FEATURE_NAMES, FEATURE_SCHEMA_VERSION, SCHEMA_HASH
+from flakydetector.models.domain import ValueModel
 
-logger = get_logger(__name__)
+
+class ModelUnavailable(ValueError):
+    pass
+
+
+class ModelManifest(ValueModel):
+    model_version: str = Field(default_factory=lambda: str(uuid4()))
+    schema_version: str = FEATURE_SCHEMA_VERSION
+    schema_hash: str = SCHEMA_HASH
+    feature_names: tuple[str, ...] = FEATURE_NAMES
+    artifact_sha256: str
+    dataset_sha256: str
+    evaluation: str = "demo"
+    calibrated: bool = False
+
+
+class CatBoostBackend(Protocol):
+    feature_names_: Sequence[str]
+
+    def fit(
+        self,
+        X: list[list[float]],
+        y: list[int],
+        *,
+        eval_set: tuple[list[list[float]], list[int]] | None = None,
+    ) -> object: ...
+    def set_feature_names(self, feature_names: list[str]) -> None: ...
+    def predict_proba(self, X: list[list[float]]) -> Sequence[Sequence[float]]: ...
+    def save_model(self, path: str) -> None: ...
+    def load_model(self, path: str) -> None: ...
+    def get_feature_importance(self) -> Sequence[float]: ...
+
+
+def new_backend(**kwargs: object) -> CatBoostBackend:
+    try:
+        # A single typed boundary around a third-party, incompletely typed package.
+        factory = cast(Callable[..., CatBoostBackend], import_module("catboost").CatBoostClassifier)
+        return factory(**kwargs)
+    except ImportError as exc:
+        raise ModelUnavailable("Install flakydetector[ml] to use CatBoost") from exc
 
 
 class FlakyClassifier:
-    """CatBoost classifier for flaky test detection."""
-
     def __init__(
-            self,
-            iterations: int = 1000,
-            depth: int = 8,
-            learning_rate: float = 0.05,
-            threshold: float = 0.7,
-            feature_extractor: FeatureExtractor | None = None,
+        self,
+        *,
+        iterations: int = 500,
+        depth: int = 6,
+        learning_rate: float = 0.1,
+        threshold: float = 0.7,
     ) -> None:
-        self._iterations = iterations
-        self._depth = depth
-        self._learning_rate = learning_rate
-        self._threshold = threshold
-        self._feature_extractor = feature_extractor or FeatureExtractor()
-
-        self._model: CatBoostClassifier | None = None
-        self._is_trained = False
+        self.iterations, self.depth = iterations, depth
+        self.learning_rate, self.threshold = learning_rate, threshold
+        self.model: CatBoostBackend | None = None
+        self.manifest: ModelManifest | None = None
 
     @property
     def is_trained(self) -> bool:
-        return self._is_trained
+        return self.model is not None
+
+    @staticmethod
+    def _rows(X: Sequence[Sequence[float]]) -> list[list[float]]:
+        import math
+
+        rows = [[float(x) for x in row] for row in X]
+        if not rows or any(
+            len(row) != len(FEATURE_NAMES) or not all(math.isfinite(x) for x in row) for row in rows
+        ):
+            raise ValueError("Expected nonempty finite rows matching the feature schema")
+        return rows
 
     def train(
-            self,
-            X: NDArray[np.float64],
-            y: NDArray[np.int32],
-            X_val: NDArray[np.float64] | None = None,
-            y_val: NDArray[np.int32] | None = None,
-            verbose: int = 100,
-    ) -> dict[str, float]:
-        """Train the classifier."""
-        logger.info(
-            "training_start",
-            n_samples=X.shape[0],
-            n_features=X.shape[1],
-            n_positive=y.sum(),
-        )
-
-        train_pool = Pool(X, y, feature_names=FEATURE_NAMES)
-        eval_pool = Pool(X_val, y_val, feature_names=FEATURE_NAMES) if X_val is not None else None
-
-        self._model = CatBoostClassifier(
-            iterations=self._iterations,
-            depth=self._depth,
-            learning_rate=self._learning_rate,
+        self,
+        X: Sequence[Sequence[float]],
+        y: Sequence[int],
+        X_val: Sequence[Sequence[float]],
+        y_val: Sequence[int],
+    ) -> None:
+        rows, validation = self._rows(X), self._rows(X_val)
+        if (
+            len(rows) != len(y)
+            or len(validation) != len(y_val)
+            or set(y) != {0, 1}
+            or set(y_val) != {0, 1}
+        ):
+            raise ValueError(
+                "Train and validation must each contain both classes with matching row counts"
+            )
+        model = new_backend(
+            iterations=self.iterations,
+            depth=self.depth,
+            learning_rate=self.learning_rate,
             loss_function="Logloss",
             eval_metric="AUC",
-            auto_class_weights="Balanced",
             random_seed=42,
-            verbose=verbose,
             early_stopping_rounds=50,
-            l2_leaf_reg=3.0,
-            min_data_in_leaf=5,
+            verbose=False,
+            allow_writing_files=False,
         )
+        model.fit(rows, list(y), eval_set=(validation, list(y_val)))
+        model.set_feature_names(list(FEATURE_NAMES))
+        self.model = model
 
-        self._model.fit(train_pool, eval_set=eval_pool)
-        self._is_trained = True
+    def predict_single(self, features: Sequence[float]) -> tuple[bool, float]:
+        if self.model is None:
+            raise ModelUnavailable("No compatible model loaded")
+        try:
+            score = float(self.model.predict_proba(self._rows([features]))[0][1])
+        except Exception as exc:
+            raise ModelUnavailable(f"Model prediction failed: {type(exc).__name__}") from exc
+        if not 0 <= score <= 1:
+            raise ModelUnavailable("Model returned an invalid score")
+        return score >= self.threshold, score
 
-        # Get metrics safely (handles early stopping on iteration 0)
-        best_score = self._model.get_best_score() or {}
-        learn_metrics = best_score.get("learn", {})
-        val_metrics = best_score.get("validation", {})
+    def save_model(self, path: Path, *, dataset_sha256: str, evaluation: str = "demo") -> None:
+        if self.model is None:
+            raise ModelUnavailable("Model has not been trained")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Write the model first; the manifest is the commit marker for readers.
+        temporary = path.with_name(path.name + ".tmp")
+        self.model.save_model(str(temporary))
+        manifest = ModelManifest(
+            artifact_sha256=hashlib.sha256(temporary.read_bytes()).hexdigest(),
+            dataset_sha256=dataset_sha256,
+            evaluation=evaluation,
+        )
+        temporary.replace(path)
+        sidecar = path.with_suffix(path.suffix + ".json")
+        temp_manifest = sidecar.with_name(sidecar.name + ".tmp")
+        temp_manifest.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+        temp_manifest.replace(sidecar)
+        self.manifest = manifest
 
-        metrics: dict[str, float] = {
-            "train_auc": learn_metrics.get("AUC", 0.0),
-            "best_iteration": self._model.get_best_iteration(),
-        }
-
-        if eval_pool is not None:
-            metrics["best_score"] = val_metrics.get("AUC", 0.0)
-        logger.info("training_complete", metrics=metrics)
-        return metrics
-
-    def predict(
-            self,
-            X: NDArray[np.float64],
-            return_probabilities: bool = True,
-    ) -> tuple[NDArray[np.bool_], NDArray[np.float64]]:
-        """Predict flaky labels."""
-        if not self._is_trained or self._model is None:
-            raise RuntimeError("Model not trained. Call train() first.")
-
-        probabilities = self._model.predict_proba(X)[:, 1]
-        predictions = probabilities >= self._threshold
-
-        return predictions, probabilities
-
-    def predict_single(
-            self,
-            features: NDArray[np.float64],
-    ) -> tuple[bool, float]:
-        """Predict for a single test."""
-        predictions, probabilities = self.predict(features.reshape(1, -1))
-        return bool(predictions[0]), float(probabilities[0])
+    def load_model(self, path: Path, *, allow_demo: bool = False) -> None:
+        sidecar = path.with_suffix(path.suffix + ".json")
+        try:
+            manifest = ModelManifest.model_validate_json(sidecar.read_text(encoding="utf-8"))
+            if (manifest.schema_hash, manifest.schema_version, manifest.feature_names) != (
+                SCHEMA_HASH,
+                FEATURE_SCHEMA_VERSION,
+                FEATURE_NAMES,
+            ):
+                raise ModelUnavailable(
+                    "Feature schema mismatch; retraining requires a validated dataset"
+                )
+            if not allow_demo and manifest.evaluation != "evaluated":
+                raise ModelUnavailable("Demonstration models are disabled in application inference")
+            if manifest.calibrated:
+                raise ModelUnavailable("This adapter does not implement a calibration artifact")
+            if hashlib.sha256(path.read_bytes()).hexdigest() != manifest.artifact_sha256:
+                raise ModelUnavailable("Model checksum mismatch")
+            model = new_backend(verbose=False)
+            model.load_model(str(path))
+            if tuple(model.feature_names_) != FEATURE_NAMES:
+                raise ModelUnavailable("Model feature names mismatch")
+        except ModelUnavailable:
+            raise
+        except Exception as exc:
+            raise ModelUnavailable(
+                f"Model artifact unavailable or invalid: {type(exc).__name__}"
+            ) from exc
+        self.model, self.manifest = model, manifest
 
     def get_feature_importance(self) -> dict[str, float]:
-        """Get feature importance scores."""
-        if not self._is_trained or self._model is None:
-            raise RuntimeError("Model not trained.")
-
-        importances = self._model.get_feature_importance()
-        return dict(zip(FEATURE_NAMES, importances))
-
-    def save_model(self, path: Path) -> None:
-        """Save model to disk."""
-        if not self._is_trained or self._model is None:
-            raise RuntimeError("Model not trained.")
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._model.save_model(str(path))
-        logger.info("model_saved", path=str(path))
-
-    def load_model(self, path: Path) -> None:
-        """Load model from disk."""
-        if not path.exists():
-            raise FileNotFoundError(f"Model file not found: {path}")
-
-        self._model = CatBoostClassifier(
-            iterations=self._iterations,
-            depth=self._depth,
-            learning_rate=self._learning_rate,
-            loss_function="Logloss",
-            eval_metric="AUC",
-            random_seed=42,
-            verbose=verbose,
-            early_stopping_rounds=None,  # ОТКЛЮЧАЕМ ЗАЩИТУ
-            l2_leaf_reg=1.0,
-            min_data_in_leaf=1,  # РАЗРЕШАЕМ ДЕРЕВЬЯМ ИДТИ НА 1 ЭЛЕМЕНТ
+        if self.model is None:
+            raise ModelUnavailable("No compatible model loaded")
+        return dict(
+            zip(FEATURE_NAMES, map(float, self.model.get_feature_importance()), strict=True)
         )
-        self._model.load_model(str(path))
-        self._is_trained = True
-        logger.info("model_loaded", path=str(path))
-
-    def get_model_params(self) -> dict[str, Any]:
-        """Get model hyperparameters."""
-        return {
-            "iterations": self._iterations,
-            "depth": self._depth,
-            "learning_rate": self._learning_rate,
-            "threshold": self._threshold,
-            "is_trained": self._is_trained,
-            "n_features": len(FEATURE_NAMES),
-        }

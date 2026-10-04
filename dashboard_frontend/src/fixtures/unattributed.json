@@ -1,0 +1,101 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "9f659e62-6a6c-4bd2-a094-639d0ab7f536",
+  "request_fingerprint": "d6bf403db000bf27ac67c0f976eade4b30ac4205bdfb9e24653879d2971eb597",
+  "source_snapshots": [
+    {
+      "file_path": "test_case.py",
+      "sha256": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a",
+      "content": "def test_ok(): pass\n"
+    }
+  ],
+  "status": "partial",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 1,
+  "files_selected": 1,
+  "files_parsed": 1,
+  "files_rejected": 0,
+  "context_files_selected": 0,
+  "test_candidates": 1,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 0,
+  "tests_with_risk": 0,
+  "evidence_links": 1,
+  "diagnostic_groups": 1,
+  "results": [
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_ok",
+      "file_path": "test_case.py",
+      "verdict": "no_known_risk",
+      "risk_score": 0.0,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    },
+    {
+      "result_kind": "unattributed_log",
+      "test_name": "<unattributed logs>",
+      "file_path": "<logs>",
+      "verdict": "inconclusive",
+      "risk_score": null,
+      "patterns": [],
+      "log_anomalies": [
+        {
+          "anomaly_type": "connection_error",
+          "category": "network_dependency",
+          "severity": "high",
+          "description": "Log indicator: connection_error",
+          "log_entries": [
+            {
+              "timestamp": null,
+              "level": "FAILED",
+              "message": "other.py::test_bad FAILED - connection refused",
+              "test_name": "other.py::test_bad",
+              "file_path": "other.py",
+              "line_number": null,
+              "raw_line": "other.py::test_bad FAILED - connection refused"
+            }
+          ],
+          "confidence": 0.85,
+          "metadata": {
+            "test_name": "other.py::test_bad",
+            "file_path": "other.py"
+          }
+        }
+      ],
+      "fixtures": [],
+      "diagnostics": [
+        {
+          "code": "unattributed_log",
+          "message": "Log evidence could not be attributed to a selected test",
+          "file_path": "",
+          "line": null,
+          "level": "warning"
+        }
+      ],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "unattributed_log",
+      "message": "Log evidence could not be attributed to a selected test",
+      "file_path": "",
+      "line": null,
+      "level": "warning"
+    }
+  ],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": null
+}

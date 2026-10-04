@@ -1,36 +1,10 @@
-# High-Level Architecture Summary
+# Evidence semantics
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FlakyDetector Architecture                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                 │
-│  │ GitHub API   │────>│   Dataset    │────>│ Log Parser   │                 │
-│  │ (CI Logs)    │     │  Collector   │     │              │                 │
-│  └──────────────┘     └──────────────┘     └──────┬───────┘                 │
-│                                                   │                         │
-│  ┌──────────────┐     ┌──────────────┐            │                         │
-│  │ Python Files │────>│ AST Analyzer │─────┐      │                         │
-│  │ (Test Code)  │     │              │     │      │                         │
-│  └──────────────┘     └──────────────┘     │      │                         │
-│                                       │    v      v                         │
-│                                       │  ┌──────────────┐                   │
-│                                       │  │    Feature   │                   │
-│                                       └─>│   Extractor  │                   │
-│                                          └──────┬───────┘                   │
-│                                                 │                           │
-│                                                 v                           │
-│                                          ┌──────────────┐                   │
-│                                          │ CatBoost /   │                   │
-│                                          │  Classifier  │                   │
-│                                          └──────┬───────┘                   │
-│                                                 │                           │
-│                                                 v                           │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                 │
-│  │ React        │<────│  FastAPI     │<────│ Flaky Test   │                 │
-│  │ Dashboard    │     │  Backend     │     │ Reports      │                 │
-│  └──────────────┘     └──────────────┘     └──────────────┘                 │
-│                                                                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  CI Integration Layer: GitHub Actions / GitLab CI / Jenkins                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+| Evidence | What it supports | What it does not support |
+|---|---|---|
+| AST pattern | A source-level risk worth checking | Observed nondeterminism or causal diagnosis |
+| Repeated comparable outcomes | An intermittently-failing observation | Independence of attempts or known root cause |
+| Rule risk index | Consistent triage across transports | Failure probability |
+| CatBoost raw score | A prediction under its versioned feature schema | Calibrated probability without a separate calibration study |
+| LLM explanation | An advisory hypothesis tied to supplied evidence IDs | Verified fix or independent label |
+| RAG cosine distance | Distance under the pinned embedding/index setup | Percentage match or diagnostic confidence |

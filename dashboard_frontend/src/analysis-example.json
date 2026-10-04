@@ -1,0 +1,83 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "f96a530b-7805-4079-8a4c-43d4ec588f27",
+  "request_fingerprint": "d600d59a3f179c045a79571f18ddbe8156c346e69af004e871ccd1eddc3f28f6",
+  "source_snapshots": [
+    {
+      "file_path": "test_sample.py",
+      "sha256": "0046d43e5d8d7061e2087c9a4a03880a4c8493b044fc48c50c3ead80a912d99e",
+      "content": "import time\ndef test_wait():\n    time.sleep(1)\ndef test_clean():\n    assert True\n"
+    }
+  ],
+  "status": "ok",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 1,
+  "files_selected": 1,
+  "files_parsed": 1,
+  "files_rejected": 0,
+  "context_files_selected": 0,
+  "test_candidates": 2,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 1,
+  "tests_with_risk": 1,
+  "evidence_links": 1,
+  "diagnostic_groups": 0,
+  "results": [
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_wait",
+      "file_path": "test_sample.py",
+      "verdict": "risk_detected",
+      "risk_score": 0.45,
+      "patterns": [
+        {
+          "pattern_type": "time_sleep",
+          "category": "timing_dependency",
+          "severity": "medium",
+          "description": "time.sleep: inspect reliance on elapsed time",
+          "location": {
+            "file_path": "test_sample.py",
+            "line_start": 3,
+            "line_end": 3,
+            "function_name": "test_wait",
+            "class_name": null,
+            "location_string": "test_sample.py:3 in test_wait"
+          },
+          "code_snippet": "def test_wait():\n    time.sleep(1)\ndef test_clean():",
+          "confidence": 0.9,
+          "fix_suggestion": "Use explicit completion conditions; a delay alone does not prove flakiness",
+          "metadata": {}
+        }
+      ],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": [
+        "Use explicit completion conditions; a delay alone does not prove flakiness"
+      ]
+    },
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_clean",
+      "file_path": "test_sample.py",
+      "verdict": "no_known_risk",
+      "risk_score": 0.0,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": null
+}
