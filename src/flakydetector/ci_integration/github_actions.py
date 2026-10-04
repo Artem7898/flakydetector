@@ -1,62 +1,48 @@
-"""Integration layer for posting analysis results to GitHub."""
+"""Explicit publishing adapter; never called automatically during analysis."""
 
 from __future__ import annotations
 
 import httpx
 
-from flakydetector.models.domain import FlakyTestReport, RepositoryAnalysis
-from flakydetector.utils.logger import get_logger
+from flakydetector.dataset.github_collector import validate_repo
+from flakydetector.models.domain import AnalysisResponse
 
-logger = get_logger(__name__)
+
+def markdown_cell(value: str) -> str:
+    return value.replace("|", r"\|").replace("\n", " ").replace("`", "'")
 
 
 class GitHubActionsIntegration:
-    """Publishes FlakyDetector reports as PR comments."""
+    def __init__(self, token: str, *, client: httpx.AsyncClient | None = None) -> None:
+        self.client = client or httpx.AsyncClient(timeout=30)
+        self.owned = client is None
+        self.token = token
 
-    def __init__(self, token: str) -> None:
-        self._client = httpx.AsyncClient(
+    def format_report(self, analysis: AnalysisResponse) -> str:
+        rows = [
+            "### FlakyDetector static risk analysis",
+            f"Status: {analysis.status}",
+            "| Test | Verdict | Findings |",
+            "|---|---|---|",
+        ]
+        rows.extend(
+            f"| {markdown_cell(r.file_path + '::' + r.test_name)} | {r.verdict} | {len(r.patterns)} |"
+            for r in analysis.results[:50]
+        )
+        rows.append("Static findings are risk indicators, not proof of observed nondeterminism.")
+        return "\n".join(rows)
+
+    async def post_pr_comment(self, repo: str, pr_number: int, analysis: AnalysisResponse) -> None:
+        response = await self.client.post(
+            f"https://api.github.com/repos/{validate_repo(repo)}/issues/{pr_number}/comments",
             headers={
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {self.token}",
                 "Accept": "application/vnd.github+json",
             },
-            timeout=30.0,
+            json={"body": self.format_report(analysis)},
         )
-
-    def _format_report(self, analysis: RepositoryAnalysis) -> str:
-        """Convert domain models to GitHub Flavored Markdown."""
-        if not analysis.flaky_tests:
-            return "✅ **FlakyDetector**: No flaky patterns detected."
-
-        md = "### 🔬 FlakyDetector Analysis\n\n"
-        md += f"**Flaky Rate:** `{analysis.flaky_rate:.1%}`\n\n"
-        md += "| Test | File | Category | Severity | Probability |\n"
-        md += "|------|------|----------|----------|-------------|\n"
-
-        for report in analysis.flaky_tests[:10]:  # Limit to top 10 for readability
-            md += (
-                f"| `{report.test_name}` | `{report.file_path}` "
-                f"| {report.category.value} | {report.severity.value} "
-                f"| `{report.flaky_probability:.0%}` |\n"
-            )
-
-        md += "\n_*Generated automatically by FlakyDetector_*\n"
-        return md
-
-    async def post_pr_comment(
-            self, repo: str, pr_number: int, analysis: RepositoryAnalysis
-    ) -> bool:
-        """Post analysis results as a comment on a Pull Request."""
-        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-        body = self._format_report(analysis)
-
-        try:
-            response = await self._client.post(url, json={"body": body})
-            response.raise_for_status()
-            logger.info("pr_comment_posted", repo=repo, pr=pr_number)
-            return True
-        except httpx.HTTPStatusError as e:
-            logger.error("failed_to_post_comment", error=str(e))
-            return False
+        response.raise_for_status()
 
     async def close(self) -> None:
-        await self._client.aclose()
+        if self.owned:
+            await self.client.aclose()

@@ -1,0 +1,113 @@
+{
+  "package_version": "0.2.0",
+  "validation_date": "2026-09-29",
+  "release_decision": "candidate: local gates pass; provider rotation, target Docker/CI and real benchmark remain separate",
+  "source_archive_sha256": "300c90e17aade4e38f8b3b510284054532f098cf75c1a66be852144fa8ebc85b",
+  "environment": {
+    "python": "3.12.14",
+    "platform": "Linux x86_64",
+    "uv": "0.12.18",
+    "node": "24.19.0"
+  },
+  "gates": {
+    "pytest": {
+      "status": "passed",
+      "tests": 86,
+      "warnings": 1,
+      "warning": "Upstream Starlette TestClient httpx deprecation; no application test failed"
+    },
+    "coverage": {
+      "status": "passed",
+      "minimum_combined_percent": 80,
+      "combined_percent": 85.53137003841229,
+      "line_percent": 88.4050081654872,
+      "branch_percent": 75.09881422924902,
+      "subprocesses_included": true
+    },
+    "ruff": {
+      "status": "passed"
+    },
+    "ruff_format": {
+      "status": "passed",
+      "files": 61
+    },
+    "pyright_strict": {
+      "status": "passed",
+      "errors": 0,
+      "warnings": 0
+    },
+    "frontend_contracts": {
+      "status": "passed",
+      "tests": 4,
+      "backend_serialized_example": true
+    },
+    "frontend_build": {
+      "status": "passed"
+    },
+    "docs_warnings_as_errors": {
+      "status": "passed"
+    },
+    "uv_lock_check": {
+      "status": "passed"
+    },
+    "sdist_to_wheel_build": {
+      "status": "passed",
+      "wheel_entries": 40
+    },
+    "isolated_wheel": {
+      "status": "passed",
+      "outside_checkout": true,
+      "optional_ml_absent": true,
+      "cli_json_file_zip_parity": true,
+      "pytest_entrypoint": true
+    },
+    "phase_ledger": {
+      "status": "passed",
+      "serial_and_xdist_workers_2": true
+    },
+    "ci_corpus_scan": {
+      "status": "passed",
+      "files": 1,
+      "findings": 2
+    },
+    "sanitization": {
+      "status": "passed",
+      "original_credential_values_checked": 2,
+      "original_credential_matches": 0,
+      "forbidden_runtime_paths": 0
+    },
+    "docker_run": {
+      "status": "not_run",
+      "reason": "Docker executable/daemon is unavailable in this execution environment",
+      "required_workflow_job": "container"
+    },
+    "python_3_13": {
+      "status": "not_run_locally",
+      "required_workflow_job": "quality[3.13]"
+    },
+    "remote_github_actions": {
+      "status": "not_run",
+      "reason": "No repository changes pushed or workflow triggered"
+    },
+    "production_model_training": {
+      "status": "not_performed",
+      "reason": "No independently reviewed comparable-run corpus supplied; temporary model only in serialization regression test"
+    },
+    "live_llm_rag_github": {
+      "status": "not_run",
+      "reason": "No source transmitted and no credentials used; adapter contracts validated with fakes/MockTransport"
+    },
+    "provider_key_rotation": {
+      "status": "owner_action_required",
+      "reason": "Removing secret values from artifacts does not revoke provider credentials"
+    }
+  },
+  "breaking_changes": [
+    "AnalysisResponse v2: results/verdict/risk_score/diagnostics replace flaky_tests/is_flaky/flaky_probability",
+    "ASTAnalyzer returns SourceAnalysis",
+    "Legacy/demo models rejected by default",
+    "SQLite v2 adds provenance without inventing it for legacy rows"
+  ],
+  "benchmarks": "Evaluation infrastructure only; no production accuracy or calibrated probability claim",
+  "verification_logs": "docs/verification/"
+}

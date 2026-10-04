@@ -1,0 +1,15 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      FLAKY_API_TOKEN: ${FLAKY_API_TOKEN:-}
+    volumes:
+      - detector-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+volumes:
+  detector-data:

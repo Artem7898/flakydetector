@@ -1,0 +1,13 @@
+
+> flakydetector-dashboard@0.2.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 85 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   3.05 kB │ gzip:  1.31 kB
+dist/assets/index-CuYjc__8.css    9.10 kB │ gzip:  2.77 kB
+dist/assets/index-CTvMFQfT.js   190.70 kB │ gzip: 64.31 kB
+✓ built in 1.03s

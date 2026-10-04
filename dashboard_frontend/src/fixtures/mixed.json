@@ -1,0 +1,83 @@
+{
+  "schema_version": "2.1.0",
+  "analysis_id": "c83f8914-bda2-415e-91e2-522f0ae9712e",
+  "request_fingerprint": "5b588e81077f5bc355b51a280f39834870c9d760c9ef23415c4ac5493130a98e",
+  "source_snapshots": [
+    {
+      "file_path": "test_bad.py",
+      "sha256": "acc6cea497935ae04d5505e95f1d264c9d12161ca862e79ed0e6e9ac88d5575a",
+      "content": "def broken(:"
+    },
+    {
+      "file_path": "test_ok.py",
+      "sha256": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a",
+      "content": "def test_ok(): pass\n"
+    }
+  ],
+  "status": "partial",
+  "total_files_analyzed": 1,
+  "total_patterns_found": 0,
+  "files_selected": 2,
+  "files_parsed": 1,
+  "files_rejected": 1,
+  "context_files_selected": 0,
+  "test_candidates": 1,
+  "collected_tests": null,
+  "discovery_mode": "static_default_pytest",
+  "unique_risk_locations": 0,
+  "tests_with_risk": 0,
+  "evidence_links": 0,
+  "diagnostic_groups": 1,
+  "results": [
+    {
+      "result_kind": "module",
+      "test_name": "<module>",
+      "file_path": "test_bad.py",
+      "verdict": "inconclusive",
+      "risk_score": null,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [
+        {
+          "code": "syntax_error",
+          "message": "invalid syntax",
+          "file_path": "test_bad.py",
+          "line": 1,
+          "level": "error"
+        }
+      ],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    },
+    {
+      "result_kind": "test_candidate",
+      "test_name": "test_ok",
+      "file_path": "test_ok.py",
+      "verdict": "no_known_risk",
+      "risk_score": 0.0,
+      "patterns": [],
+      "log_anomalies": [],
+      "fixtures": [],
+      "diagnostics": [],
+      "backend_used": "rules",
+      "model_score": null,
+      "calibrated_probability": null,
+      "recommendations": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "syntax_error",
+      "message": "invalid syntax",
+      "file_path": "test_bad.py",
+      "line": 1,
+      "level": "error"
+    }
+  ],
+  "feature_schema_version": "2.1.0",
+  "model_version": null,
+  "degraded_reason": null
+}

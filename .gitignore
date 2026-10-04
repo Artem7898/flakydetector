@@ -1,41 +1,25 @@
-# Python
+.venv/
+.env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.venv/
-venv/
-dist/
-build/
-*.egg-info/
-
-# Scientific Data & Models (DO NOT COMMIT HEAVY FILES)
-data/raw/
-data/processed/
-data/models/*.cbm
-data/models/*.json
-*.parquet
-*.feather
-
-# Environment & Secrets
-.env
-.env.local
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-
-# Testing & CI
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
-ruff_cache/
+coverage.json
+node_modules/
+dist/
+build/
+data/
+*.db*
+*.cbm
+catboost_info/
+docs/_build/
 
-# Frontend
-dashboard_frontend/node_modules/
-dashboard_frontend/build/
-
-# OS
-.DS_Store
-Thumbs.db
+# Generated delivery output; the archive builder creates its own manifest.
+/artifacts/
+/verification/
+/RELEASE_MANIFEST.json
+/~pytest-dev/

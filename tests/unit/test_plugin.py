@@ -1,10 +1,9 @@
 """Тесты для плагина pytest-flaky-trail."""
+
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-
-import pytest
 
 from flakydetector.pytest_flaky_trail.storage import TrailStorage
 
@@ -14,6 +13,7 @@ def test_storage_creates_db(tmp_path: Path) -> None:
     db_file = tmp_path / "test.db"
     storage = TrailStorage(db_path=db_file)
 
+    assert storage.db_path == db_file
     assert db_file.exists()
 
     # Проверяем наличие таблиц через прямой SQL запрос
@@ -35,7 +35,7 @@ def test_storage_saves_trail(tmp_path: Path) -> None:
         nodeid="tests/test_foo.py::test_bar",
         outcome="failed",
         duration=0.123,
-        traceback="AssertionError: assert 1 == 2"
+        traceback="AssertionError: assert 1 == 2",
     )
 
     conn = sqlite3.connect(tmp_path / "test2.db")

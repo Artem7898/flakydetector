@@ -24,7 +24,7 @@ def test_datetime_now_dependency():
     # Some operation
     result = str(datetime.utcnow())
 
-    after = datetime.utcnow()
+    _after = datetime.utcnow()
 
     # This assertion is timing-dependent
     assert before.strftime("%Y-%m-%d") in result

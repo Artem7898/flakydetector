@@ -1,18 +1,22 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
-title: "Scientific API Gateway: A reproducible DDD template for computational physics"
+message: "If you use FlakyDetector, please cite the software and record the version or commit."
+type: software
+title: "FlakyDetector: static test-risk analysis and pytest execution evidence"
 authors:
   - family-names: "Alimpiev"
     given-names: "Artem"
     orcid: "https://orcid.org/0009-0007-6740-7242"
 license: MIT
-version: 0.3.0
-date-released: "2025-10-27"
-url: "https://github.com/Artem7898/scientific_fastapi"
-abstract: "A high-performance, strictly-typed FastAPI framework implementing Domain-Driven Design, background task queues, and automated MLflow experiment tracking for reproducible computational science."
+version: "0.2.1rc1"
+repository-code: "https://github.com/Artem7898/flakydetector"
+url: "https://github.com/Artem7898/flakydetector"
+abstract: >-
+  A Python toolkit for explainable static test-risk analysis, attributable
+  evidence, and comparable pytest execution observations. Static risks are
+  not proof of intermittent failure. This version is a release candidate.
 keywords:
-  - "fastapi"
-  - "reproducible-research"
-  - "scientific-computing"
-  - "mlflow"
-  - "domain-driven-design"
+  - python
+  - pytest
+  - static-analysis
+  - flaky-tests
+  - reproducibility

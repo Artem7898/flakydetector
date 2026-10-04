@@ -1,18 +1,24 @@
-"""Core domain models for flaky test detection."""
+"""Validated values at system boundaries; risk is not observed nondeterminism."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from enum import Enum
-from typing import Any
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field
 
 
-class FlakyCategory(str, Enum):
-    """Root cause categories for flaky tests."""
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
+
+class ValueModel(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class FlakyCategory(StrEnum):
     ASYNC_RACE_CONDITION = "async_race_condition"
     TIMING_DEPENDENCY = "timing_dependency"
     GLOBAL_STATE = "global_state_mutation"
@@ -26,171 +32,110 @@ class FlakyCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
-class FlakySeverity(str, Enum):
-    """Severity levels for flaky test impact."""
-
-    LOW = "low"  # Rare failures, quick to fix
-    MEDIUM = "medium"  # Occasional failures, moderate fix time
-    HIGH = "high"  # Frequent failures, complex fix
-    CRITICAL = "critical"  # Almost always fails, blocks CI
+class FlakySeverity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
-class TestRunStatus(str, Enum):
-    """Status of a single test run."""
+SEVERITY_RANK = {severity: rank for rank, severity in enumerate(FlakySeverity)}
 
+
+class TestRunStatus(StrEnum):
     PASSED = "passed"
     FAILED = "failed"
     ERROR = "error"
     SKIPPED = "skipped"
-    FLAKY_PASSED = "flaky_passed"  # Passed but showed flaky behavior
-    FLAKY_FAILED = "flaky_failed"  # Failed due to flakiness
+    XFAILED = "xfailed"
+    XPASSED = "xpassed"
+    UNKNOWN = "unknown"
+    INCOMPLETE = "incomplete"
 
 
-class DetectionMethod(str, Enum):
-    """Method used to detect flakiness."""
-
+class DetectionMethod(StrEnum):
     AST_PATTERN = "ast_pattern"
     LOG_ANALYSIS = "log_analysis"
-    STATISTICAL = "statistical"
     ML_CLASSIFIER = "ml_classifier"
-    LLM_ANALYSIS = "llm_analysis"
-    ENSEMBLE = "ensemble"
+    STATISTICAL = "statistical"
 
 
-class CodeLocation(BaseModel):
-    """Source code location."""
-
-    file_path: str = Field(..., description="Relative path to the file")
-    line_start: int = Field(..., ge=1, description="Start line number")
-    line_end: int | None = Field(default=None, ge=1, description="End line number")
-    function_name: str | None = Field(default=None, description="Function/method name")
-    class_name: str | None = Field(default=None, description="Class name")
+class CodeLocation(ValueModel):
+    file_path: str
+    line_start: int = Field(ge=1)
+    line_end: int | None = Field(default=None, ge=1)
+    function_name: str | None = None
+    class_name: str | None = None
 
     @computed_field
     @property
     def location_string(self) -> str:
-        """Human-readable location string."""
-        base = f"{self.file_path}:{self.line_start}"
-        if self.function_name:
-            base = f"{base} in {self.function_name}"
-            if self.class_name:
-                base = f"{base} ({self.class_name})"
-        return base
+        suffix = f" in {self.function_name}" if self.function_name else ""
+        return f"{self.file_path}:{self.line_start}{suffix}"
 
 
-class ASTPattern(BaseModel):
-    """Detected AST pattern indicating potential flakiness."""
-
+class ASTPattern(ValueModel):
     pattern_type: str
     category: FlakyCategory
     severity: FlakySeverity
     description: str
     location: CodeLocation
     code_snippet: str
-    confidence: float
-    fix_suggestion: str = Field(default="", description="Actionable steps to fix the pattern")
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    confidence: float = Field(
+        ge=0, le=1, description="Rule evidence confidence, not flake probability"
+    )
+    fix_suggestion: str = ""
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class TestRunResult(BaseModel):
-    """Result of a single test execution."""
+class FixtureInfo(ValueModel):
+    fixture_name: str
+    scope: str = "function"
+    has_yield: bool = False
+    has_autouse: bool = False
+    returns_mutable_literal: bool = False
+    uses_finalizer: bool = False
+    line: int = 0
+    file_path: str = ""
+    class_name: str | None = None
+    dependencies: tuple[str, ...] = ()
+    function_name: str = ""
 
-    run_id: UUID = Field(default_factory=uuid4)
-    test_name: str
-    status: TestRunStatus
-    duration_ms: float = Field(..., ge=0.0)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    error_message: str | None = None
-    error_traceback: str | None = None
-    ci_run_id: str | None = None
-    environment: dict[str, str] = Field(default_factory=dict)
+
+class TestDefinition(ValueModel):
+    name: str
+    class_name: str | None = None
+    line: int
+    fixtures: tuple[str, ...] = ()
+
+    @property
+    def qualified_name(self) -> str:
+        return f"{self.class_name}::{self.name}" if self.class_name else self.name
 
 
-class FlakyTestReport(BaseModel):
-    """Complete analysis report for a potentially flaky test."""
+class AnalysisDiagnostic(ValueModel):
+    code: str
+    message: str
+    file_path: str = ""
+    line: int | None = None
+    level: Literal["warning", "error"] = "error"
 
-    report_id: UUID = Field(default_factory=uuid4)
-    test_name: str
+
+class SourceAnalysis(ValueModel):
     file_path: str
-    is_flaky: bool
-    flaky_probability: float = Field(..., ge=0.0, le=1.0)
-    category: FlakyCategory
-    severity: FlakySeverity
-    detection_methods: list[DetectionMethod] = Field(default_factory=list)
-    patterns: list[ASTPattern] = Field(default_factory=list)
-    test_runs: list[TestRunResult] = Field(default_factory=list)
+    patterns: tuple[ASTPattern, ...] = ()
+    fixtures: tuple[FixtureInfo, ...] = ()
+    tests: tuple[TestDefinition, ...] = ()
+    diagnostics: tuple[AnalysisDiagnostic, ...] = ()
 
-    @computed_field
     @property
-    def flaky_rate(self) -> float:
-        """Calculate flaky rate from test runs."""
-        if not self.test_runs:
-            return 0.0
-        flaky_count = sum(
-            1 for r in self.test_runs
-            if r.status in (TestRunStatus.FLAKY_PASSED, TestRunStatus.FLAKY_FAILED)
-        )
-        return flaky_count / len(self.test_runs)
-
-    @computed_field
-    @property
-    def avg_duration_ms(self) -> float:
-        """Average test duration."""
-        if not self.test_runs:
-            return 0.0
-        return sum(r.duration_ms for r in self.test_runs) / len(self.test_runs)
-
-    @computed_field
-    @property
-    def duration_variance_ms(self) -> float:
-        """Variance in test duration (indicator of timing issues)."""
-        if len(self.test_runs) < 2:
-            return 0.0
-        mean = self.avg_duration_ms
-        return sum((r.duration_ms - mean) ** 2 for r in self.test_runs) / len(self.test_runs)
+    def ok(self) -> bool:
+        return not any(d.level == "error" for d in self.diagnostics)
 
 
-class RepositoryAnalysis(BaseModel):
-    """Aggregated analysis for a repository."""
-
-    repo_id: UUID = Field(default_factory=uuid4)
-    repo_url: str
-    analysis_timestamp: datetime = Field(default_factory=datetime.utcnow)
-    total_tests: int = 0
-    flaky_tests: list[FlakyTestReport] = Field(default_factory=list)
-
-    @computed_field
-    @property
-    def flaky_rate(self) -> float:
-        """Overall flaky rate."""
-        if self.total_tests == 0:
-            return 0.0
-        return len(self.flaky_tests) / self.total_tests
-
-    @computed_field
-    @property
-    def category_distribution(self) -> dict[FlakyCategory, int]:
-        """Distribution of flaky categories."""
-        dist: dict[FlakyCategory, int] = {}
-        for report in self.flaky_tests:
-            dist[report.category] = dist.get(report.category, 0) + 1
-        return dist
-
-    @computed_field
-    @property
-    def severity_distribution(self) -> dict[FlakySeverity, int]:
-        """Distribution of severity levels."""
-        dist: dict[FlakySeverity, int] = {}
-        for report in self.flaky_tests:
-            dist[report.severity] = dist.get(report.severity, 0) + 1
-        return dist
-
-
-class LogEntry(BaseModel):
-    """Parsed CI log entry."""
-
+class LogEntry(ValueModel):
     timestamp: datetime | None = None
-    level: str = "INFO"
+    level: str = "UNKNOWN"
     message: str = ""
     test_name: str | None = None
     file_path: str | None = None
@@ -198,35 +143,70 @@ class LogEntry(BaseModel):
     raw_line: str = ""
 
 
-class FixtureInfo(BaseModel):
-    """Extracted metadata from a pytest fixture."""
-    fixture_name: str = Field(default="function", description="pytest scope (function, class, module, session)")
-    has_yield: bool = Field(default=False, description="True if fixture uses 'yield' (has teardown)")
-    has_autouse: bool = Field(default=False, description="True if autouse=True")
-    returns_mutable_literal: bool = Field(default=False, description="True if returns [], {} or set()")
-    uses_finalizer: bool = Field(default=False, description="True if uses context.addfinalizer")
-    line: int = Field(default=0, description="Line number")
-
-
-class LogAnomaly(BaseModel):
-    """Detected anomaly in CI logs."""
-
+class LogAnomaly(ValueModel):
     anomaly_type: str
     category: FlakyCategory
     severity: FlakySeverity
     description: str
-    log_entries: list[LogEntry] = Field(default_factory=list)
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    log_entries: tuple[LogEntry, ...] = ()
+    confidence: float = Field(ge=0, le=1)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class FixtureInfo(BaseModel):
-    """Extracted metadata from a pytest fixture."""
+class TestRunResult(ValueModel):
+    run_id: UUID = Field(default_factory=uuid4)
+    test_name: str
+    status: TestRunStatus
+    duration_ms: float = Field(default=0, ge=0)
+    timestamp: datetime = Field(default_factory=utc_now)
 
-    fixture_name: str
-    scope: str = Field(default="function", description="pytest scope (function, class, module, session)")
-    has_yield: bool = Field(default=False, description="True if fixture uses 'yield' (has teardown)")
-    has_autouse: bool = Field(default=False, description="True if fixture has autouse=True")
-    returns_mutable_literal: bool = Field(default=False, description="True if returns [], {} or set()")
-    uses_finalizer: bool = Field(default=False, description="True if uses context.addfinalizer")
-    line: int = Field(default=0)
+
+class TestAnalysisResult(ValueModel):
+    result_kind: Literal["test_candidate", "module", "helper", "unattributed_log"] = (
+        "test_candidate"
+    )
+    test_name: str
+    file_path: str
+    verdict: Literal["risk_detected", "no_known_risk", "inconclusive"]
+    risk_score: float | None = Field(default=None, ge=0, le=1)
+    patterns: tuple[ASTPattern, ...] = ()
+    log_anomalies: tuple[LogAnomaly, ...] = ()
+    fixtures: tuple[FixtureInfo, ...] = ()
+    diagnostics: tuple[AnalysisDiagnostic, ...] = ()
+    backend_used: Literal["rules", "ml"] = "rules"
+    model_score: float | None = Field(default=None, ge=0, le=1)
+    calibrated_probability: float | None = Field(default=None, ge=0, le=1)
+    recommendations: tuple[str, ...] = ()
+
+
+class SourceSnapshot(ValueModel):
+    file_path: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    content: str
+
+
+class AnalysisResponse(ValueModel):
+    schema_version: str = "2.1.0"
+    analysis_id: UUID = Field(default_factory=uuid4)
+    request_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_snapshots: tuple[SourceSnapshot, ...] = ()
+    status: Literal["ok", "partial", "error"]
+    # Legacy totals retained with clarified units; prefer the explicit fields below.
+    total_files_analyzed: int = Field(ge=0)
+    total_patterns_found: int = Field(ge=0)
+    files_selected: int = Field(default=0, ge=0)
+    files_parsed: int = Field(default=0, ge=0)
+    files_rejected: int = Field(default=0, ge=0)
+    context_files_selected: int = Field(default=0, ge=0)
+    test_candidates: int = Field(default=0, ge=0)
+    collected_tests: int | None = Field(default=None, ge=0)
+    discovery_mode: Literal["static_default_pytest"] = "static_default_pytest"
+    unique_risk_locations: int = Field(default=0, ge=0)
+    tests_with_risk: int = Field(default=0, ge=0)
+    evidence_links: int = Field(default=0, ge=0)
+    diagnostic_groups: int = Field(default=0, ge=0)
+    results: tuple[TestAnalysisResult, ...]
+    diagnostics: tuple[AnalysisDiagnostic, ...] = ()
+    feature_schema_version: str = "2.1.0"
+    model_version: str | None = None
+    degraded_reason: str | None = None

@@ -1,75 +1,53 @@
-"""A lightweight fixture to trap shared state mutations."""
+"""Explicit shallow mapping proxy. It never injects itself into pytest fixtures."""
 
 from __future__ import annotations
-from typing import Any
-import pytest
-from scipy.constants import value
+
+from collections.abc import Iterator, MutableMapping
+from dataclasses import dataclass
+from typing import TypeVar
+
+K = TypeVar("K")
+V = TypeVar("V")
 
 
-class SharedStateTrap(dict):
-    """
-    Intercepts mutations to detect shared state leakage
-    between pytest tests.
-    """
+@dataclass(frozen=True, slots=True)
+class Mutation[K]:
+    operation: str
+    key: K
 
-    def __init__(
-        self,
-        target: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__()
 
-        self.target = target if target is not None else {}
+class SharedStateTrap(MutableMapping[K, V]):
+    """Tracks top-level writes only. Nested object mutations are intentionally unsupported."""
 
-        self._mutations: list[str] = []
+    def __init__(self, target: MutableMapping[K, V] | None = None) -> None:
+        self.target: MutableMapping[K, V] = {} if target is None else target
+        self._baseline = dict(self.target)
+        self._mutations: list[Mutation[K]] = []
 
-        self._original_keys: set[str] = set(
-            self.target.keys()
-        )
+    def __getitem__(self, key: K) -> V:
+        return self.target[key]
 
-    def __delitem__(
-        self,
-        key: str,
-    ) -> None:
-        """Track deleted keys safely."""
-        if key in self.target:
-            self._mutations.append(
-                f"Deleted key: {key}"
-            )
-
-            del self.target[key]
-
+    def __setitem__(self, key: K, value: V) -> None:
         self.target[key] = value
+        self._mutations.append(Mutation("set", key))
 
-        super().__setitem__(key, value)
+    def __delitem__(self, key: K) -> None:
+        del self.target[key]
+        self._mutations.append(Mutation("delete", key))
 
+    def __iter__(self) -> Iterator[K]:
+        return iter(self.target)
 
-    def get_mutations(self) -> list[str]:
-        """Return collected mutations."""
-        return self._mutations.copy()
+    def __len__(self) -> int:
+        return len(self.target)
 
-    def reset(self) -> None:
-        """Restore original state."""
-
-        keys_to_remove = (
-            set(self.target.keys())
-            - self._original_keys
-        )
-
-        for key in keys_to_remove:
-            del self.target[key]
-
-        self.clear()
+    def get_mutations(self) -> tuple[Mutation[K], ...]:
+        return tuple(self._mutations)
 
     def has_mutations(self) -> bool:
-        """Fast mutation existence check."""
         return bool(self._mutations)
 
-
-@pytest.fixture(
-    scope="function",
-    autouse=True,
-)
-def shared_state_trap() -> SharedStateTrap:
-    """Inject shared state tracker."""
-
-    return SharedStateTrap()
+    def reset(self) -> None:
+        self.target.clear()
+        self.target.update(self._baseline)
+        self._mutations.clear()
