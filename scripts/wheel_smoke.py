@@ -51,7 +51,11 @@ def main() -> None:
             timeout=30,
         )
         expected = normalize(json.loads(run.stdout))
-        with TestClient(create_app()) as client:
+        with TestClient(
+            create_app(),
+            base_url="http://127.0.0.1",
+            client=("127.0.0.1", 50000),
+        ) as client:
             assert client.get("/ready").status_code == 200
             responses = [
                 client.post(
@@ -59,7 +63,8 @@ def main() -> None:
                 ),
                 client.post("/api/v1/analyze/file", files={"file": (path.name, SOURCE)}),
                 client.post(
-                    "/api/v1/analyze/directory", files={"file": ("corpus.zip", buffer.getvalue())}
+                    "/api/v1/analyze/directory",
+                    files={"file": ("corpus.zip", buffer.getvalue())},
                 ),
             ]
             for response in responses:
@@ -93,8 +98,8 @@ def main() -> None:
                 "optional_ml_absent": True,
                 "cli_json_file_zip_parity": True,
                 "pytest_entrypoint": True,
-            }
-        )
+            },
+        ),
     )
 
 
