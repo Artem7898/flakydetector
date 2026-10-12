@@ -51,7 +51,7 @@ def main() -> None:
             timeout=30,
         )
         expected = normalize(json.loads(run.stdout))
-                with TestClient(
+        with TestClient(
             create_app(),
             base_url="http://127.0.0.1",
             client=("127.0.0.1", 50000),
@@ -60,7 +60,7 @@ def main() -> None:
             responses = [
                 client.post(
                     "/api/v1/analyze", json={"file_content": SOURCE, "file_path": path.name}
-                ), 
+                ),
                 client.post("/api/v1/analyze/file", files={"file": (path.name, SOURCE)}),
                 client.post(
                     "/api/v1/analyze/directory",
