@@ -51,7 +51,11 @@ def main() -> None:
             timeout=30,
         )
         expected = normalize(json.loads(run.stdout))
-        with TestClient(create_app(), base_url="http://127.0.0.1") as client:
+                with TestClient(
+            create_app(),
+            base_url="http://127.0.0.1",
+            client=("127.0.0.1", 50000),
+        ) as client:
             assert client.get("/ready").status_code == 200
             responses = [
                 client.post(
