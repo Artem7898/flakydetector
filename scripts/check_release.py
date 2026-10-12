@@ -29,11 +29,18 @@ FORBIDDEN_PARTS = {
     "htmlcov",
 }
 CREDENTIALS = [
-    re.compile(rb"gh[pousr]_[A-Za-z0-9]{30,}"),
-    re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{30,}"),
-    re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(b"gh[pousr]_[A-Za-z0-9]{30,}"),
+    re.compile(b"sk-(?:proj-)?[A-Za-z0-9_-]{30,}"),
+    re.compile(b"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
 REQUIRED = {
+    "action.yml",
+    "src/flakydetector/security/projection.py",
+    "src/flakydetector/workers/child.py",
+    "src/flakydetector/reporting/sarif.py",
+    "src/flakydetector/runtime/monitors.py",
+    "scripts/validate_sarif.py",
+    "dashboard_frontend/src/Observed.jsx",
     "LICENSE",
     "README.md",
     "pyproject.toml",
@@ -79,7 +86,7 @@ def inspect_entries(entries: list[tuple[str, bytes]]) -> list[str]:
             any(part in FORBIDDEN_PARTS for part in path.parts)
             or path.suffix in {".db", ".cbm", ".pyc", ".pyo"}
             or path.name.startswith(".coverage")
-            or path.name in {"coverage.xml", "coverage.json"}
+            or (path.name in {"coverage.xml", "coverage.json"})
             or (path.name.startswith(".env") and path.name != ".env.example")
         ):
             errors.append(f"Forbidden artifact: {name}")
@@ -104,7 +111,7 @@ def validate_entries(
     first_parts = {name.split("/")[0] for name, _ in entries}
     prefix = (
         next(iter(first_parts)) + "/"
-        if len(first_parts) == 1 and all("/" in name for name, _ in entries)
+        if len(first_parts) == 1 and all(("/" in name for name, _ in entries))
         else ""
     )
     files = {name.removeprefix(prefix): data for name, data in entries}
@@ -141,12 +148,12 @@ def validate_entries(
 def read_release(path: Path) -> dict[str, bytes]:
     with zipfile.ZipFile(path) as archive:
         members = archive.infolist()
-        if len(members) > 10000 or sum(member.file_size for member in members) > 100_000_000:
+        if len(members) > 10000 or sum(member.file_size for member in members) > 100000000:
             raise ValueError("Source archive exceeds verification limits")
         if any(stat.S_ISLNK(member.external_attr >> 16) for member in members):
             raise ValueError("Symlinks are not allowed in source releases")
         return validate_entries(
-            [(member.filename, archive.read(member)) for member in members if not member.is_dir()]
+            [(member.filename, archive.read(member)) for member in members if not member.is_dir()],
         )
 
 

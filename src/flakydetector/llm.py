@@ -6,7 +6,6 @@ import ast
 import hashlib
 import json
 import os
-import re
 from collections.abc import Callable, Sequence
 from importlib import import_module
 from pathlib import Path
@@ -46,13 +45,9 @@ class Completion(Protocol):
 
 
 def redact(value: str) -> str:
-    # Best effort only: sending source to any remote endpoint requires an explicit CLI choice.
-    value = re.sub(
-        r"(?i)((?:api[_-]?key|token|password|secret)\s*[=:]\s*)[\"\']?[^\s\"\',;]+",
-        r"\1[REDACTED]",
-        value,
-    )
-    return re.sub(r"(?i)Bearer\s+[A-Za-z0-9._~-]+", "Bearer [REDACTED]", value)
+    from flakydetector.security.privacy import redact as sanitize
+
+    return sanitize(value)
 
 
 def build_prompt(record: DatasetRecord) -> tuple[str, set[str]]:
@@ -75,12 +70,14 @@ def build_prompt(record: DatasetRecord) -> tuple[str, set[str]]:
         },
         ensure_ascii=False,
     )
-    return prompt, set(evidence)
+    return (prompt, set(evidence))
 
 
 def analyze_record(record: DatasetRecord, *, model: str, complete: Completion) -> AdvisoryRecord:
     identity = hashlib.sha256(
-        json.dumps([record.model_dump(mode="json"), model, PROMPT_VERSION], sort_keys=True).encode()
+        json.dumps(
+            [record.model_dump(mode="json"), model, PROMPT_VERSION], sort_keys=True
+        ).encode(),
     ).hexdigest()
     base = AdvisoryRecord(
         status="error",
@@ -103,7 +100,8 @@ def analyze_record(record: DatasetRecord, *, model: str, complete: Completion) -
         if not set(analysis.evidence_ids) <= ids:
             raise ValueError("Explanation references unavailable evidence")
         if analysis.fixed_code:
-            ast.parse(analysis.fixed_code)  # Syntax validation only; never execute model output.
+            # Syntax validation only; never execute model output.
+            ast.parse(analysis.fixed_code)
         return base.model_copy(update={"status": "ok", "analysis": analysis})
     except Exception as exc:
         # Provider errors may contain request bodies or credentials; persist only their class.
@@ -126,7 +124,7 @@ def analyze_dataset(
             identity = hashlib.sha256(
                 json.dumps(
                     [record.model_dump(mode="json"), model, PROMPT_VERSION], sort_keys=True
-                ).encode()
+                ).encode(),
             ).hexdigest()
             if identity in done:
                 continue
@@ -138,7 +136,7 @@ def analyze_dataset(
             failures += item.status == "error"
             if item.status == "ok":
                 done.add(identity)
-    return successes, failures
+    return (successes, failures)
 
 
 def openai_completion(base_url: str, api_key: str) -> Completion:
@@ -165,6 +163,7 @@ def openai_completion(base_url: str, api_key: str) -> Completion:
         content: str
 
     # The provider envelope has additional fields; select only the validated content.
+
     def complete(*, model: str, system: str, prompt: str) -> str:
         response = cast(Client, client).chat.completions.create(
             model=model,

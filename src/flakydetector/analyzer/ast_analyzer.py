@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from flakydetector.analyzer.fixture_parser import FixtureParser
 from flakydetector.analyzer.syntax import (
     Function,
+    character_column,
     dotted,
     imports,
     requested_fixtures,
@@ -24,12 +25,8 @@ from flakydetector.models.domain import (
     SourceAnalysis,
     TestDefinition,
 )
-from flakydetector.models.domain import (
-    FlakyCategory as C,
-)
-from flakydetector.models.domain import (
-    FlakySeverity as S,
-)
+from flakydetector.models.domain import FlakyCategory as C
+from flakydetector.models.domain import FlakySeverity as S
 
 MUTATORS = {
     "append",
@@ -131,6 +128,8 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     file_path=self.path,
                     line_start=line,
                     line_end=end,
+                    column_start=character_column(self.lines, line, node.col_offset),
+                    column_end=character_column(self.lines, end, node.end_col_offset),
                     function_name=self.current.name or None,
                     class_name=".".join(self.classes) or None,
                 ),
@@ -138,7 +137,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     self.lines[max(0, line - 2) : min(len(self.lines), (end or line) + 1)]
                 ),
                 metadata=dict(metadata),
-            )
+            ),
         )
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
@@ -147,20 +146,30 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         # not a claim that collection/imports/custom hooks have been executed.
         enabled = (
             node.name.startswith("Test")
-            and not any(
-                isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and child.name in {"__init__", "__new__"}
-                for child in node.body
-            )
-            and not any(
-                isinstance(child, ast.Assign)
-                and any(
-                    isinstance(target, ast.Name) and target.id == "__test__"
-                    for target in child.targets
+            and (
+                not any(
+                    (
+                        isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and child.name in {"__init__", "__new__"}
+                        for child in node.body
+                    ),
                 )
-                and isinstance(child.value, ast.Constant)
-                and child.value.value is False
-                for child in node.body
+            )
+            and (
+                not any(
+                    (
+                        isinstance(child, ast.Assign)
+                        and any(
+                            (
+                                isinstance(target, ast.Name) and target.id == "__test__"
+                                for target in child.targets
+                            )
+                        )
+                        and isinstance(child.value, ast.Constant)
+                        and (child.value.value is False)
+                        for child in node.body
+                    ),
+                )
             )
         )
         self.collectible_classes.append(enabled and all(self.collectible_classes))
@@ -178,10 +187,11 @@ class FlakyPatternVisitor(ast.NodeVisitor):
             n.id for n in nodes if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)
         } - global_names
         locals_.update(
-            a.arg for a in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)
+            (a.arg for a in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)),
         )
         for name in locals_:
-            aliases[name] = ""  # Do not treat a shadowed imported module as the module.
+            # Do not treat a shadowed imported module as the module.
+            aliases[name] = ""
         aliases.update(imports(node))
         scope = Scope(
             name=f"{parent.name}.{node.name}" if parent.name else node.name,
@@ -198,14 +208,16 @@ class FlakyPatternVisitor(ast.NodeVisitor):
         for dec in node.decorator_list:
             scope.mocks.update(self._patch_targets(dec))
         is_fixture = any(
-            resolve(dec.func if isinstance(dec, ast.Call) else dec, parent.aliases)
-            in {"pytest.fixture", "pytest_asyncio.fixture", "fixture"}
-            for dec in node.decorator_list
+            (
+                resolve(dec.func if isinstance(dec, ast.Call) else dec, parent.aliases)
+                in {"pytest.fixture", "pytest_asyncio.fixture", "fixture"}
+                for dec in node.decorator_list
+            ),
         )
         if (
             node.name.startswith("test")
-            and not parent.name
-            and not is_fixture
+            and (not parent.name)
+            and (not is_fixture)
             and all(self.collectible_classes)
         ):
             self.tests.append(
@@ -214,23 +226,25 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     class_name=".".join(self.classes) or None,
                     line=node.lineno,
                     fixtures=requested_fixtures(node, aliases),
-                )
+                ),
             )
         self.scopes.append(scope)
         complexity = 1 + sum(
-            isinstance(
-                n,
-                (
-                    ast.If,
-                    ast.IfExp,
-                    ast.For,
-                    ast.AsyncFor,
-                    ast.While,
-                    ast.ExceptHandler,
-                    ast.comprehension,
-                ),
-            )
-            for n in nodes
+            (
+                isinstance(
+                    n,
+                    (
+                        ast.If,
+                        ast.IfExp,
+                        ast.For,
+                        ast.AsyncFor,
+                        ast.While,
+                        ast.ExceptHandler,
+                        ast.comprehension,
+                    ),
+                )
+                for n in nodes
+            ),
         )
         complexity += sum(len(n.values) - 1 for n in nodes if isinstance(n, ast.BoolOp))
         complexity += sum(max(0, len(n.cases) - 1) for n in nodes if isinstance(n, ast.Match))
@@ -245,8 +259,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                 "Split independent behaviors into focused tests",
                 complexity_score=complexity,
             )
-        for child in node.body:
-            self.visit(child)
+        self._block(node.body)
         self.scopes.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -282,14 +295,15 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     self.protected_open.add(id(expr))
                 elif name in {"contextlib.closing", "closing"}:
                     self.protected_open.update(
-                        id(n)
-                        for n in ast.walk(expr)
-                        if isinstance(n, ast.Call)
-                        and resolve(n.func, self.current.aliases) in {"open", "builtins.open"}
+                        (
+                            id(n)
+                            for n in ast.walk(expr)
+                            if isinstance(n, ast.Call)
+                            and resolve(n.func, self.current.aliases) in {"open", "builtins.open"}
+                        ),
                     )
             self.visit(item.context_expr)
-        for stmt in node.body:
-            self.visit(stmt)
+        self._block(node.body)
         self.current.mocks = old_mocks
         self.protected_open = old_protected
 
@@ -298,6 +312,92 @@ class FlakyPatternVisitor(ast.NodeVisitor):
 
     def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
         self._with(node)
+
+    def _block(self, body: list[ast.stmt]) -> bool:
+        """Analyze reachable statements. Return whether normal control may continue."""
+        for statement in body:
+            self.visit(statement)
+            if isinstance(statement, (ast.Return, ast.Raise, ast.Break, ast.Continue)):
+                return False
+            if (isinstance(statement, ast.If)) and (isinstance(statement.test, ast.Constant)):
+                branch = statement.body if statement.test.value else statement.orelse
+                if branch and isinstance(branch[-1], (ast.Return, ast.Raise)):
+                    return False
+        return True
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        if isinstance(node.test, ast.Constant):
+            self._block(node.body if node.test.value else node.orelse)
+            return
+        before = self.current.mocks.copy()
+        reachable: list[set[str]] = []
+        for branch in (node.body, node.orelse):
+            self.current.mocks = before.copy()
+            if self._block(branch):
+                reachable.append(self.current.mocks.copy())
+        self.current.mocks = set[str].intersection(*reachable) if reachable else before
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        before = self.current.mocks.copy()
+        if isinstance(node.test, ast.Constant):
+            self.visit(node.body if node.test.value else node.orelse)
+            return
+        self.visit(node.body)
+        left = self.current.mocks.copy()
+        self.current.mocks = before.copy()
+        self.visit(node.orelse)
+        self.current.mocks.intersection_update(left)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.visit(node.values[0])
+        before = self.current.mocks.copy()
+        for value in node.values[1:]:
+            self.visit(value)
+        self.current.mocks.intersection_update(before)
+
+    def visit_Try(self, node: ast.Try) -> None:
+        before = self.current.mocks.copy()
+        self._block(node.body)
+        self._block(node.orelse)
+        candidates = [self.current.mocks.copy(), before]
+        for handler in node.handlers:
+            self.current.mocks = before.copy()
+            self._block(handler.body)
+            candidates.append(self.current.mocks.copy())
+        self.current.mocks = set[str].intersection(*candidates)
+        self._block(node.finalbody)
+
+    def visit_TryStar(self, node: ast.TryStar) -> None:
+        before = self.current.mocks.copy()
+        self.generic_visit(node)
+        self.current.mocks.intersection_update(before)
+
+    def visit_While(self, node: ast.While) -> None:
+        self.visit(node.test)
+        before = self.current.mocks.copy()
+        if not (isinstance(node.test, ast.Constant) and (not node.test.value)):
+            self._block(node.body)
+        self.current.mocks.intersection_update(before)
+        self._block(node.orelse)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        before = self.current.mocks.copy()
+        self.generic_visit(node)
+        self.current.mocks.intersection_update(before)
+
+    def visit_Match(self, node: ast.Match) -> None:
+        self.visit(node.subject)
+        before = self.current.mocks.copy()
+        candidates = [before]
+        for case in node.cases:
+            self.current.mocks = before.copy()
+            if case.guard:
+                self.visit(case.guard)
+            self._block(case.body)
+            candidates.append(self.current.mocks.copy())
+        self.current.mocks = set[str].intersection(*candidates)
 
     def _mock_applies(self, function: ast.AST, origin: str) -> bool:
         if isinstance(function, ast.Name):
@@ -352,12 +452,14 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     is_mocked=mocked,
                 )
             elif name in {
+                "date.today",
+                "datetime.date.today",
                 "datetime.now",
                 "datetime.utcnow",
                 "datetime.datetime.now",
                 "datetime.datetime.utcnow",
                 "time.time",
-            } and not self._mock_applies(node.func, name):
+            } and (not self._mock_applies(node.func, name)):
                 self.add(
                     node,
                     "datetime_now",
@@ -382,8 +484,8 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                 if (
                     isinstance(root, ast.Name)
                     and root.id in self.module_names
-                    and root.id not in self.current.locals
-                    and node.func.attr in MUTATORS
+                    and (root.id not in self.current.locals)
+                    and (node.func.attr in MUTATORS)
                 ):
                     self.add(
                         node,
@@ -395,6 +497,8 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                         "Use a per-test fixture or restore state",
                         variable=root.id,
                     )
+            if raw_name in {"monkeypatch.undo", "mocker.stopall"}:
+                self.current.mocks.clear()
             if name in {"monkeypatch.setattr", "mocker.patch"}:
                 if name == "mocker.patch":
                     self.current.mocks.update(string_args(node)[:1])
@@ -410,7 +514,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     and isinstance(node.args[1].value, str)
                 ):
                     self.current.mocks.add(
-                        f"{resolve(node.args[0], self.current.aliases)}.{node.args[1].value}"
+                        f"{resolve(node.args[0], self.current.aliases)}.{node.args[1].value}",
                     )
         self.generic_visit(node)
 
@@ -424,7 +528,7 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                     or (
                         not isinstance(target, ast.Name)
                         and name in self.module_names
-                        and name not in self.current.locals
+                        and (name not in self.current.locals)
                     )
                 ):
                     self.add(
@@ -440,9 +544,11 @@ class FlakyPatternVisitor(ast.NodeVisitor):
             if (
                 isinstance(target, ast.Name)
                 and isinstance(node.value, (ast.Set, ast.SetComp))
-                or isinstance(target, ast.Name)
-                and isinstance(node.value, ast.Call)
-                and resolve(node.value.func, self.current.aliases) == "set"
+                or (
+                    isinstance(target, ast.Name)
+                    and isinstance(node.value, ast.Call)
+                    and (resolve(node.value.func, self.current.aliases) == "set")
+                )
             ):
                 self.current.sets.add(target.id)
         self.generic_visit(node)
@@ -471,15 +577,21 @@ class FlakyPatternVisitor(ast.NodeVisitor):
                 0.65,
                 "Sort only when order is part of the assertion",
             )
-        self.generic_visit(node)
+        before = self.current.mocks.copy()
+        self.visit(node.iter)
+        self._block(node.body)
+        self.current.mocks.intersection_update(before)
+        self._block(node.orelse)
 
     def visit_Compare(self, node: ast.Compare) -> None:
         if (
             self.current.name
             and any(isinstance(op, (ast.Eq, ast.NotEq)) for op in node.ops)
             and any(
-                isinstance(n, ast.Constant) and isinstance(n.value, float)
-                for n in [node.left, *node.comparators]
+                (
+                    isinstance(n, ast.Constant) and isinstance(n.value, float)
+                    for n in [node.left, *node.comparators]
+                ),
             )
         ):
             self.add(
@@ -517,11 +629,12 @@ class FlakyPatternVisitor(ast.NodeVisitor):
 
 
 class ASTAnalyzer:
-    def __init__(self, max_file_size: int = 1_000_000, max_nodes: int = 50_000) -> None:
+    def __init__(self, max_file_size: int = 1000000, max_nodes: int = 50000) -> None:
         self.max_file_size = max_file_size
         self.max_nodes = max_nodes
 
     def analyze_source(self, source: str, file_path: str) -> SourceAnalysis:
+
         def failure(code: str, message: str, line: int | None = None) -> SourceAnalysis:
             return SourceAnalysis(
                 file_path=file_path,
@@ -538,6 +651,9 @@ class ASTAnalyzer:
                 return failure("ast_too_large", "AST exceeds the configured node limit")
             visitor = FlakyPatternVisitor(tree, source, file_path)
             visitor.visit(tree)
+            from flakydetector.analyzer.semantics import enrich_patterns
+
+            visitor.matches = enrich_patterns(tree, source, file_path, visitor.matches)
             fixtures = FixtureParser().parse_tree(tree, file_path)
         except SyntaxError as exc:
             return failure("syntax_error", exc.msg, exc.lineno)
@@ -576,7 +692,8 @@ class ASTAnalyzer:
         return {
             str(p): self.analyze_file(p)
             for p in sorted(directory.glob(pattern))
-            if not p.is_symlink() and not any(x in excluded for x in p.relative_to(directory).parts)
+            if not p.is_symlink()
+            and (not any(x in excluded for x in p.relative_to(directory).parts))
         }
 
     @staticmethod

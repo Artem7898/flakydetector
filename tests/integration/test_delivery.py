@@ -17,19 +17,7 @@ from flakydetector.dashboard.main import create_app
 from flakydetector.input import InputError, zip_bundle
 from flakydetector.utils.config import Settings
 
-CORPUS = """import pytest
-import time as clock
-import requests
-@pytest.fixture(scope="session")
-def shared():
-    return {}
-def test_network(shared):
-    requests.get("https://example.test")
-async def test_clock():
-    clock.sleep(1)
-def test_clean():
-    assert 1 == 1
-"""
+CORPUS = 'import pytest\nimport time as clock\nimport requests\n@pytest.fixture(scope="session")\ndef shared():\n    return {}\ndef test_network(shared):\n    requests.get("https://example.test")\nasync def test_clock():\n    clock.sleep(1)\ndef test_clean():\n    assert 1 == 1\n'
 
 
 def archive(entries):
@@ -46,7 +34,9 @@ def semantic(value):
 
 @pytest.fixture
 def client():
-    with TestClient(create_app()) as value:
+    with TestClient(
+        create_app(), client=("127.0.0.1", 51000), base_url="http://127.0.0.1"
+    ) as value:
         yield value
 
 
@@ -108,9 +98,19 @@ def test_model_degraded_does_not_erase_rules(client):
 
 
 def test_missing_model_readiness(tmp_path):
-    with TestClient(create_app(Settings(model_path=tmp_path / "missing.cbm"))) as client:
+    with TestClient(
+        create_app(Settings(model_path=tmp_path / "missing.cbm")),
+        client=("127.0.0.1", 51000),
+        base_url="http://127.0.0.1",
+    ) as client:
         assert client.get("/health").status_code == 200
-        assert client.get("/ready").status_code == 503
+        assert client.get("/ready").status_code == 200
+        # Core readiness is independent from optional model loading in a child.
+        response = client.post(
+            "/api/v1/analyze", json={"file_content": CORPUS, "use_ml_classifier": True}
+        )
+        assert response.json()["status"] == "partial"
+        assert response.json()["degraded_reason"]
 
 
 def test_unique_analysis_identity_and_locations(client):
@@ -151,11 +151,15 @@ def test_zip_bounded_and_no_path_write(tmp_path):
 def test_optional_routes_fail_visibly(client):
     assert client.get("/api/v1/search_similar", params={"query": "race"}).status_code == 503
     assert client.get("/api/v1/features/importance").status_code == 503
-    assert client.get("/api/v1/stats/org/repo").status_code == 501
+    assert client.get("/api/v1/stats/org/repo").status_code == 503
 
 
 def test_auth_gate():
-    with TestClient(create_app(Settings(api_token="unit-test-only"))) as client:
+    with TestClient(
+        create_app(Settings(api_token="unit-test-only")),
+        client=("127.0.0.1", 51000),
+        base_url="http://127.0.0.1",
+    ) as client:
         assert client.post("/api/v1/analyze", json={"file_content": CORPUS}).status_code == 401
         assert (
             client.post(
@@ -176,12 +180,12 @@ def test_empty_scan_and_fixture_only_request():
 
         def predict_single(self, features):
             self.received.append(features)
-            return True, 0.8
+            return (True, 0.8)
 
     model = Model()
     response = AnalyzeService(classifier=model).analyze(
         {
-            "test_a.py": 'import pytest\n@pytest.fixture(scope="session")\ndef state():\n    return {}\ndef test_a(state): pass\n'
+            "test_a.py": 'import pytest\n@pytest.fixture(scope="session")\ndef state():\n    return {}\ndef test_a(state): pass\n',
         },
         use_ml=True,
     )
@@ -216,8 +220,14 @@ def test_testless_file_is_not_empty_success(client):
 
 
 def test_body_limit_is_413():
-    with TestClient(create_app(Settings(max_archive_bytes=32))) as client:
+    with TestClient(
+        create_app(Settings(max_archive_bytes=32)),
+        client=("127.0.0.1", 51000),
+        base_url="http://127.0.0.1",
+    ) as client:
         response = client.post(
-            "/api/v1/analyze", content=b"x" * 70000, headers={"Content-Type": "application/json"}
+            "/api/v1/analyze",
+            content=b"x" * 70000,
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 413

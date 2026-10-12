@@ -1,19 +1,63 @@
 {
-  "schema_version": "2.1.0",
-  "analysis_id": "3f4031c4-4250-4d40-84b5-61ff62cd85c1",
-  "request_fingerprint": "7be609ce79334696caa4e7c91ce6610f8622439a20f27c8723e3b7e61ef0345f",
-  "source_snapshots": [
+  "schema_version": "3.0.0",
+  "findings": [
     {
-      "file_path": "conftest.py",
-      "sha256": "f90bd3f6033a4ae58969deb497210ee1d30a6aef18ac87c879304b7755b4f5b5",
-      "content": "import pytest\n@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}\n"
-    },
-    {
-      "file_path": "test_case.py",
-      "sha256": "256d034821d6e846c40e80030d026542ddbb821fe85a3a95744165497f8b4bb5",
-      "content": "def test_one(shared): pass\ndef test_two(shared): pass\n"
+      "finding_id": "9ecbeb16ec8b6a652f2781cfbed49f0055e3536006025fae3fe7a28bf0b3f58e",
+      "fingerprint_version": "1",
+      "rule_id": "FD-FIXTURE-001",
+      "rule_version": "1.0.0",
+      "title": "Shared mutable fixture state",
+      "severity": "medium",
+      "confidence": 0.7,
+      "location": {
+        "file_path": "conftest.py",
+        "line_start": 3,
+        "line_end": null,
+        "column_start": null,
+        "column_end": null,
+        "function_name": "shared",
+        "class_name": null
+      },
+      "test_nodeids": [
+        "test_case.py::test_one",
+        "test_case.py::test_two"
+      ],
+      "facts": [
+        "Shared mutable fixture state"
+      ],
+      "limitations": [
+        "A static pattern does not establish runtime execution, intermittent failure or causation.",
+        "Dynamic bindings or unsupported control flow may require manual review."
+      ],
+      "suggested_experiments": [
+        "Review the resolved boundary and its cleanup on every exit path.",
+        "Capture repeated executions with the same recorded provenance. Changing treatment creates a separate experiment, not more baseline attempts."
+      ],
+      "verdict": "risk_detected",
+      "baseline_state": "new"
     }
   ],
+  "source_digests": {
+    "conftest.py": "f90bd3f6033a4ae58969deb497210ee1d30a6aef18ac87c879304b7755b4f5b5",
+    "test_case.py": "256d034821d6e846c40e80030d026542ddbb821fe85a3a95744165497f8b4bb5"
+  },
+  "source_grant": null,
+  "source_access": "disabled",
+  "source_expires_at": null,
+  "granted_scopes": [
+    "analyze",
+    "events:read",
+    "events:write",
+    "export",
+    "findings:read",
+    "lifecycle:write",
+    "quarantine:write",
+    "source:read"
+  ],
+  "workspace": "local",
+  "analysis_id": "d16e3b6d-163f-450e-a612-8dbcd71d7542",
+  "request_fingerprint": "7be609ce79334696caa4e7c91ce6610f8622439a20f27c8723e3b7e61ef0345f",
+  "source_snapshots": [],
   "status": "ok",
   "total_files_analyzed": 1,
   "total_patterns_found": 2,
@@ -45,11 +89,12 @@
             "file_path": "conftest.py",
             "line_start": 3,
             "line_end": null,
+            "column_start": null,
+            "column_end": null,
             "function_name": "shared",
-            "class_name": null,
-            "location_string": "conftest.py:3 in shared"
+            "class_name": null
           },
-          "code_snippet": "@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}",
+          "code_snippet": "",
           "confidence": 0.7,
           "fix_suggestion": "Use function scope or explicitly isolate/restore mutations",
           "metadata": {}
@@ -95,11 +140,12 @@
             "file_path": "conftest.py",
             "line_start": 3,
             "line_end": null,
+            "column_start": null,
+            "column_end": null,
             "function_name": "shared",
-            "class_name": null,
-            "location_string": "conftest.py:3 in shared"
+            "class_name": null
           },
-          "code_snippet": "@pytest.fixture(scope=\"session\")\ndef shared():\n    return {}",
+          "code_snippet": "",
           "confidence": 0.7,
           "fix_suggestion": "Use function scope or explicitly isolate/restore mutations",
           "metadata": {}
@@ -131,7 +177,7 @@
     }
   ],
   "diagnostics": [],
-  "feature_schema_version": "2.1.0",
+  "feature_schema_version": "3.0.0",
   "model_version": null,
   "degraded_reason": null
 }

@@ -11,7 +11,7 @@ test('analysis response stays linked to submitted code even when editing in flig
   assert.equal(state.result.snapshot.code, initialState.code);
   assert.equal(analysisIsStale(state), true);
 });
-for (const [field, value] of [['code', 'changed'], ['useMl', true], ['mode', 'file'], ['file', {name: 'new.py'}], ['token', 'not-persisted']]) {
+for (const [field, value] of [['code', 'changed'], ['useMl', true], ['mode', 'file'], ['file', {name: 'new.py'}]]) {
   test(`editing ${field} marks completed results outdated`, () => {
     let state = success(start({...initialState}, 1), 1);
     state = reducer(state, {type: 'edit', field, value});
@@ -69,3 +69,13 @@ test('captured snapshot is immutable and never contains auth credentials', () =>
   assert.ok(Object.isFrozen(snapshot));
   assert.ok(!JSON.stringify(snapshot).includes('never-export'));
 });
+
+for (const [field, value] of [['token', 'new-key'], ['workspace', 'private-workspace']]) {
+  test(`changing ${field} purges result and rejects an old response`, () => {
+    let state = success(start({...initialState}, 1), 1);
+    state = start(state, 2);
+    state = reducer(state, {type: 'edit', field, value});
+    assert.equal(state.result, null);
+    assert.equal(success(state, 2), state);
+  });
+}

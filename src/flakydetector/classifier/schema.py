@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-FEATURE_SCHEMA_VERSION = "2.1.0"
+FEATURE_SCHEMA_VERSION = "3.0.0"
 FEATURE_NAMES: tuple[str, ...] = (
     "ast_async_sleep",
     "ast_concurrent_tasks",

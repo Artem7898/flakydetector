@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -35,17 +37,13 @@ def run(
         log_path.write_text(output, encoding="utf-8")
     if result.returncode:
         raise RuntimeError(
-            f"Command failed ({result.returncode}): {' '.join(command)}\n{result.stdout}\n{result.stderr}"
+            f"Command failed ({result.returncode}): {' '.join(command)}\n{result.stdout}\n{result.stderr}",
         )
     return output
 
 
 def wait_for_ready(
-    url: str,
-    container_id: str,
-    *,
-    timeout: float = 60.0,
-    interval: float = 1.0,
+    url: str, container_id: str, *, timeout: float = 60.0, interval: float = 1.0
 ) -> None:
     """Wait for HTTP 200 with a deadline; a transient reset is not a startup failure.
 
@@ -64,7 +62,7 @@ def wait_for_ready(
             run(
                 ["docker", "inspect", "--format", "{{json .State}}", container_id],
                 timeout=min(10.0, remaining),
-            )
+            ),
         )
         if not isinstance(state, dict) or state.get("Running") is not True:
             raise RuntimeError(f"Container exited before readiness: {state}")
@@ -100,6 +98,8 @@ def main() -> None:
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
     tag = f"flakydetector:smoke-{uuid4().hex[:12]}"
+    previous_token = os.environ.get("FLAKY_API_TOKEN")
+    api_token = secrets.token_urlsafe(32)
     container_id = ""
     built = False
     exit_code = 2
@@ -126,19 +126,23 @@ def main() -> None:
             report["stage"] = "start"
             # Preserve a failed container until its diagnostics have been captured.
             # The finally block removes only this smoke run's own container.
+            os.environ["FLAKY_API_TOKEN"] = api_token
             container_id = run(
                 [
                     "docker",
                     "run",
                     "--detach",
+                    "--env",
+                    "FLAKY_API_TOKEN",
                     "--read-only",
                     "--tmpfs",
                     "/tmp",
                     "--publish",
                     "127.0.0.1::8000",
                     tag,
-                ]
+                ],
             ).strip()
+            os.environ.pop("FLAKY_API_TOKEN", None)
             port = run(["docker", "port", container_id, "8000/tcp"]).strip().rsplit(":", 1)[-1]
             base = f"http://127.0.0.1:{port}"
             report["stage"] = "readiness"
@@ -147,7 +151,7 @@ def main() -> None:
             with urllib.request.urlopen(base + "/", timeout=5) as response:
                 html = response.read().decode()
                 assert "text/html" in response.headers["content-type"]
-            assets = re.findall(r'(?:src|href)="(/assets/[^\"]+)"', html)
+            assets = re.findall('(?:src|href)="(/assets/[^\\"]+)"', html)
             assert assets, "Built frontend assets are missing"
             for asset in assets:
                 with urllib.request.urlopen(base + asset, timeout=5) as response:
@@ -157,13 +161,33 @@ def main() -> None:
             request = urllib.request.Request(
                 base + "/api/v1/analyze",
                 data=json.dumps({"file_content": source, "file_path": "test_smoke.py"}).encode(),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_token}",
+                },
             )
             with urllib.request.urlopen(request, timeout=10) as response:
                 payload = json.load(response)
-            assert payload["schema_version"] == "2.1.0" and payload["test_candidates"] == 1
+            assert payload["schema_version"] == "3.0.0" and payload["test_candidates"] == 1
             assert payload["results"][0]["verdict"] == "risk_detected"
-            assert payload["source_snapshots"][0]["content"] == source
+            assert payload["source_snapshots"] == []
+            assert (
+                payload["source_digests"]["test_smoke.py"]
+                == hashlib.sha256(source.encode()).hexdigest()
+            )
+            assert payload["source_access"] == "disabled"
+            unauthenticated = urllib.request.Request(
+                base + "/api/v1/analyze",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                urllib.request.urlopen(unauthenticated, timeout=5)
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 401
+                exc.close()
+            else:
+                raise AssertionError("Unauthenticated remote request was accepted")
             report.update(
                 status="passed",
                 stage="complete",
@@ -181,6 +205,10 @@ def main() -> None:
             logs = subprocess.run(["docker", "logs", container_id], capture_output=True, text=True)
             args.report.with_suffix(".container.log").write_text(logs.stdout + logs.stderr)
     finally:
+        if previous_token is None:
+            os.environ.pop("FLAKY_API_TOKEN", None)
+        else:
+            os.environ["FLAKY_API_TOKEN"] = previous_token
         if container_id:
             subprocess.run(
                 ["docker", "rm", "--force", container_id], capture_output=True, check=False

@@ -1,3 +1,5 @@
+> **Historical 0.2.0/0.2.1 context:** the 0.2.2 candidate changes this scope. See [capability matrix](CAPABILITY_MATRIX.md), [migration](MIGRATION_0.2.2.md) and [current security boundary](https://github.com/Artem7898/flakydetector/blob/main/SECURITY.md). This page is retained as historical context, not current verification.
+
 > Исторический документ исправлений 0.1.0 → 0.2.0. Не является отчётом по текущему кандидату. См. [статус 0.2.1rc1](IMPLEMENTATION_STATUS.RU.md).
 
 # Исправления FlakyDetector: решение, код и проверяемый результат

@@ -25,18 +25,18 @@ def docnames() -> set[str]:
         for path in DOCS.rglob("*")
         if path.is_file()
         and path.suffix in {".md", ".txt"}
-        and not any(fnmatch.fnmatch(path.relative_to(DOCS).as_posix(), p) for p in excluded)
-        and "_build" not in path.relative_to(DOCS).parts
+        and (not any(fnmatch.fnmatch(path.relative_to(DOCS).as_posix(), p) for p in excluded))
+        and ("_build" not in path.relative_to(DOCS).parts)
     }
 
 
 def toc_entries() -> list[str]:
-    blocks = re.findall(r"```\{toctree\}\n(.*?)```", (DOCS / "index.md").read_text(), re.S)
+    blocks = re.findall("```\\{toctree\\}\\n(.*?)```", (DOCS / "index.md").read_text(), re.S)
     return [
         line.strip()
         for block in blocks
         for line in block.splitlines()
-        if line.strip() and not line.startswith(":")
+        if line.strip() and (not line.startswith(":"))
     ]
 
 
@@ -55,9 +55,11 @@ class DocumentationConfigTests(unittest.TestCase):
             for alias in node.names
         }
         imports.update(
-            node.module.split(".")[0]
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module
+            (
+                node.module.split(".")[0]
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module
+            ),
         )
         self.assertEqual(imports, {"os", "pathlib", "tomllib"})
 
@@ -97,7 +99,7 @@ class DocumentationConfigTests(unittest.TestCase):
         for statement in text.replace("\\\n", " ").splitlines():
             if not statement or statement.startswith(("#", "--")):
                 continue
-            match = re.match(r"([a-z0-9-]+)==([^ ;]+)", statement)
+            match = re.match("([a-z0-9-]+)==([^ ;]+)", statement)
             self.assertIsNotNone(match, statement)
             if match is None:
                 continue
@@ -105,7 +107,7 @@ class DocumentationConfigTests(unittest.TestCase):
             names.add(name)
             self.assertIn(name, packages)
             self.assertEqual(version, packages[name]["version"])
-            hashes = set(re.findall(r"--hash=(sha256:[a-f0-9]{64})", statement))
+            hashes = set(re.findall("--hash=(sha256:[a-f0-9]{64})", statement))
             self.assertTrue(hashes, name)
             allowed = {wheel["hash"] for wheel in packages[name].get("wheels", [])}
             sdist = packages[name].get("sdist")
@@ -117,12 +119,32 @@ class DocumentationConfigTests(unittest.TestCase):
 
     def test_verifier_requires_sphinx_after_docs_install(self) -> None:
         text = (ROOT / "scripts/verify_release.py").read_text()
-        self.assertIn('"documentation"', text)
-        self.assertIn('"sphinx"', text)
-        self.assertIn('"-W"', text)
-        self.assertIn('"--keep-going"', text)
-        prefix = text.split('("ruff",', 1)[0]
-        self.assertRegex(prefix, r'"--extra",\s*"docs"')
+        tree = ast.parse(text)
+        assignment = next(
+            (
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Assign)
+                and any(
+                    (
+                        isinstance(target, ast.Name) and target.id == "commands"
+                        for target in node.targets
+                    )
+                )
+            ),
+        )
+        self.assertIsInstance(assignment.value, ast.List)
+        commands = {item.elts[0].value: item.elts[1] for item in assignment.value.elts}
+        install = [n.value for n in commands["locked-install"].elts if isinstance(n, ast.Constant)]
+        docs = [n.value for n in commands["documentation"].elts if isinstance(n, ast.Constant)]
+        self.assertIn("sphinx", docs)
+        self.assertIn("-W", docs)
+        self.assertIn("--keep-going", docs)
+        self.assertTrue(
+            any(
+                (a == "--extra" and b == "docs" for a, b in zip(install, install[1:], strict=False))
+            )
+        )
 
     def test_rtd_installs_export_not_application(self) -> None:
         text = (ROOT / ".readthedocs.yaml").read_text()

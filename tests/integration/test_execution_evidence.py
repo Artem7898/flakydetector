@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sqlite3
 import subprocess
@@ -14,25 +15,7 @@ from flakydetector.dataset.records import export_records, extract_function_sourc
 from flakydetector.pytest_flaky_trail.storage import TrailStorage
 from flakydetector.utils.provenance import source_fingerprint
 
-SUITE = """import pytest
-@pytest.fixture
-def broken_setup():
-    raise RuntimeError("setup failed")
-@pytest.fixture
-def broken_teardown():
-    yield
-    raise RuntimeError("teardown failed")
-def test_setup(broken_setup): pass
-def test_teardown(broken_teardown): pass
-def test_call(): assert False
-def test_ok(): pass
-@pytest.mark.skip(reason="intentional")
-def test_skip(): pass
-@pytest.mark.xfail(reason="intentional")
-def test_xfail(): assert False
-@pytest.mark.xfail(reason="intentional")
-def test_xpass(): pass
-"""
+SUITE = 'import pytest\n@pytest.fixture\ndef broken_setup():\n    raise RuntimeError("setup failed")\n@pytest.fixture\ndef broken_teardown():\n    yield\n    raise RuntimeError("teardown failed")\ndef test_setup(broken_setup): pass\ndef test_teardown(broken_teardown): pass\ndef test_call(): assert False\ndef test_ok(): pass\n@pytest.mark.skip(reason="intentional")\ndef test_skip(): pass\n@pytest.mark.xfail(reason="intentional")\ndef test_xfail(): assert False\n@pytest.mark.xfail(reason="intentional")\ndef test_xpass(): pass\n'
 
 
 def run_pytest(root, *extra):
@@ -65,6 +48,10 @@ def run_pytest(root, *extra):
 
 @pytest.mark.parametrize("workers", [0, 2])
 def test_real_phases_serial_and_xdist(tmp_path, workers):
+    if workers and importlib.util.find_spec("xdist") is None:
+        if os.getenv("REQUIRE_RUNTIME_PLUGINS") == "1":
+            pytest.fail("Mandatory xdist runtime dependency missing")
+        pytest.skip("pytest-xdist unavailable locally; mandatory runtime CI installs it")
     (tmp_path / "test_suite.py").write_text(SUITE)
     extra = ["-p", "xdist.plugin", "-n", str(workers)] if workers else []
     run_pytest(tmp_path, *extra)
@@ -136,7 +123,7 @@ def test_legacy_migration_preserves_untrusted_rows(tmp_path):
     path = tmp_path / "legacy.db"
     with closing(sqlite3.connect(path)) as conn:
         conn.executescript(
-            'CREATE TABLE test_runs(id INTEGER PRIMARY KEY,run_timestamp TEXT,repo_name TEXT,environment TEXT); CREATE TABLE test_trails(id INTEGER PRIMARY KEY,run_id INTEGER,nodeid TEXT,outcome TEXT,duration REAL,traceback TEXT); INSERT INTO test_runs VALUES(1,"old","r","e"); INSERT INTO test_trails VALUES(1,1,"a.py::a","passed",0,NULL);'
+            'CREATE TABLE test_runs(id INTEGER PRIMARY KEY,run_timestamp TEXT,repo_name TEXT,environment TEXT); CREATE TABLE test_trails(id INTEGER PRIMARY KEY,run_id INTEGER,nodeid TEXT,outcome TEXT,duration REAL,traceback TEXT); INSERT INTO test_runs VALUES(1,"old","r","e"); INSERT INTO test_trails VALUES(1,1,"a.py::a","passed",0,NULL);',
         )
     storage = TrailStorage(path)
     with storage.connection() as conn:
@@ -182,7 +169,7 @@ def test_labels_require_comparable_runs_and_separate_always_failing(tmp_path):
 def test_async_class_param_source_extraction(tmp_path):
     path = tmp_path / "test_a.py"
     path.write_text(
-        'import pytest\nclass TestCase:\n    @pytest.mark.parametrize("x", [1])\n    async def test_a(self, x):\n        assert x\n'
+        'import pytest\nclass TestCase:\n    @pytest.mark.parametrize("x", [1])\n    async def test_a(self, x):\n        assert x\n',
     )
     source = extract_function_source(path, "TestCase::test_a[1]")
     assert "@pytest.mark.parametrize" in source and "async def test_a" in source

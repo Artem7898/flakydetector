@@ -1,14 +1,61 @@
 {
-  "schema_version": "2.1.0",
-  "analysis_id": "f96a530b-7805-4079-8a4c-43d4ec588f27",
-  "request_fingerprint": "d600d59a3f179c045a79571f18ddbe8156c346e69af004e871ccd1eddc3f28f6",
-  "source_snapshots": [
+  "schema_version": "3.0.0",
+  "findings": [
     {
-      "file_path": "test_sample.py",
-      "sha256": "0046d43e5d8d7061e2087c9a4a03880a4c8493b044fc48c50c3ead80a912d99e",
-      "content": "import time\ndef test_wait():\n    time.sleep(1)\ndef test_clean():\n    assert True\n"
+      "finding_id": "5ea53bc8bfa2be07ad176c65c97e9f84c43b3a304ee7b64360ec1fded658988d",
+      "fingerprint_version": "1",
+      "rule_id": "FD-TIME-001",
+      "rule_version": "1.0.0",
+      "title": "Fixed time delay",
+      "severity": "medium",
+      "confidence": 0.9,
+      "location": {
+        "file_path": "test_sample.py",
+        "line_start": 3,
+        "line_end": 3,
+        "column_start": 5,
+        "column_end": 18,
+        "function_name": "test_wait",
+        "class_name": null
+      },
+      "test_nodeids": [
+        "test_sample.py::test_wait"
+      ],
+      "facts": [
+        "Fixed time delay"
+      ],
+      "limitations": [
+        "A static pattern does not establish runtime execution, intermittent failure or causation.",
+        "Dynamic bindings or unsupported control flow may require manual review."
+      ],
+      "suggested_experiments": [
+        "Review the resolved boundary and its cleanup on every exit path.",
+        "Capture repeated executions with the same recorded provenance. Changing treatment creates a separate experiment, not more baseline attempts."
+      ],
+      "verdict": "risk_detected",
+      "baseline_state": "new"
     }
   ],
+  "source_digests": {
+    "test_sample.py": "0046d43e5d8d7061e2087c9a4a03880a4c8493b044fc48c50c3ead80a912d99e"
+  },
+  "source_grant": null,
+  "source_access": "disabled",
+  "source_expires_at": null,
+  "granted_scopes": [
+    "analyze",
+    "events:read",
+    "events:write",
+    "export",
+    "findings:read",
+    "lifecycle:write",
+    "quarantine:write",
+    "source:read"
+  ],
+  "workspace": "local",
+  "analysis_id": "f4410854-6fab-4a91-b462-3019f4527a9a",
+  "request_fingerprint": "d600d59a3f179c045a79571f18ddbe8156c346e69af004e871ccd1eddc3f28f6",
+  "source_snapshots": [],
   "status": "ok",
   "total_files_analyzed": 1,
   "total_patterns_found": 1,
@@ -40,11 +87,12 @@
             "file_path": "test_sample.py",
             "line_start": 3,
             "line_end": 3,
+            "column_start": 5,
+            "column_end": 18,
             "function_name": "test_wait",
-            "class_name": null,
-            "location_string": "test_sample.py:3 in test_wait"
+            "class_name": null
           },
-          "code_snippet": "def test_wait():\n    time.sleep(1)\ndef test_clean():",
+          "code_snippet": "",
           "confidence": 0.9,
           "fix_suggestion": "Use explicit completion conditions; a delay alone does not prove flakiness",
           "metadata": {}
@@ -77,7 +125,7 @@
     }
   ],
   "diagnostics": [],
-  "feature_schema_version": "2.1.0",
+  "feature_schema_version": "3.0.0",
   "model_version": null,
   "degraded_reason": null
 }

@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 def utc_now() -> datetime:
@@ -64,10 +64,11 @@ class CodeLocation(ValueModel):
     file_path: str
     line_start: int = Field(ge=1)
     line_end: int | None = Field(default=None, ge=1)
+    column_start: int | None = Field(default=None, ge=1)
+    column_end: int | None = Field(default=None, ge=1)
     function_name: str | None = None
     class_name: str | None = None
 
-    @computed_field
     @property
     def location_string(self) -> str:
         suffix = f" in {self.function_name}" if self.function_name else ""
@@ -181,14 +182,38 @@ class TestAnalysisResult(ValueModel):
 
 class SourceSnapshot(ValueModel):
     file_path: str
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sha256: str = Field(pattern="^[0-9a-f]{64}$")
     content: str
 
 
+class StaticFinding(ValueModel):
+    finding_id: str = Field(pattern="^[0-9a-f]{64}$")
+    fingerprint_version: str = "1"
+    rule_id: str
+    rule_version: str
+    title: str
+    severity: FlakySeverity
+    confidence: float = Field(ge=0, le=1)
+    location: CodeLocation
+    test_nodeids: tuple[str, ...] = ()
+    facts: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+    suggested_experiments: tuple[str, ...] = ()
+    verdict: Literal["risk_detected"] = "risk_detected"
+    baseline_state: Literal["new", "existing", "worsened", "resolved", "inconclusive"] = "new"
+
+
 class AnalysisResponse(ValueModel):
-    schema_version: str = "2.1.0"
+    schema_version: str = "3.0.0"
+    findings: tuple[StaticFinding, ...] = ()
+    source_digests: dict[str, str] = Field(default_factory=dict)
+    source_grant: str | None = Field(default=None, max_length=128)
+    source_access: Literal["disabled", "redacted", "denied"] = "disabled"
+    source_expires_at: datetime | None = None
+    granted_scopes: tuple[str, ...] = ()
+    workspace: str = "local"
     analysis_id: UUID = Field(default_factory=uuid4)
-    request_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    request_fingerprint: str = Field(pattern="^[0-9a-f]{64}$")
     source_snapshots: tuple[SourceSnapshot, ...] = ()
     status: Literal["ok", "partial", "error"]
     # Legacy totals retained with clarified units; prefer the explicit fields below.
@@ -207,6 +232,6 @@ class AnalysisResponse(ValueModel):
     diagnostic_groups: int = Field(default=0, ge=0)
     results: tuple[TestAnalysisResult, ...]
     diagnostics: tuple[AnalysisDiagnostic, ...] = ()
-    feature_schema_version: str = "2.1.0"
+    feature_schema_version: str = "3.0.0"
     model_version: str | None = None
     degraded_reason: str | None = None

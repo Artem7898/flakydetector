@@ -1,5 +1,7 @@
 import {Component, useState} from 'react';
 import {diagnosticText, verdictLabel} from './contract.js';
+import {exportAnalysis} from './api.js';
+import {sourceExpired} from './product-contract.js';
 
 export class ResultBoundary extends Component {
   state = {failed: false};
@@ -17,34 +19,33 @@ function SourceEvidence({pattern, snapshots}) {
   return <details className="source-evidence">
     <summary>Open captured source · {location.file_path}:{location.line_start}</summary>
     {source ? <>
-      <p className="muted hash">SHA-256 {source.sha256} · captured by this analysis, not the current editor</p>
+      <p className="muted hash">Original source SHA-256 {source.sha256} · displayed content is redacted and may differ</p>
       <pre className="source-code" tabIndex={0}>{source.content.split('\n').map((line, index) =>
         <span className={index + 1 >= location.line_start && index + 1 <= (location.line_end ?? location.line_start) ? 'source-line highlighted' : 'source-line'} key={index}>
           <span className="line-number" aria-hidden="true">{index + 1}</span>{line || ' '}{'\n'}
         </span>)}</pre>
-    </> : <p className="muted">The full source snapshot is unavailable. The available excerpt is shown below.</p>}
+    </> : <p className="muted">Source access is disabled, denied or expired. This is not evidence of a clean file.</p>}
   </details>;
 }
 
-function exportReport(payload) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'}));
-  const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = `flakydetector-${payload.analysis_id}.json`;
-  anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-export default function Results({payload, snapshot, stale}) {
+export default function Results({payload, snapshot, stale, token}) {
+  const [exportError, setExportError] = useState(null);
+  async function download(format, withSource = false) {
+    if (withSource && !window.confirm('This export contains redacted source code. Redaction is best-effort. Confirm that you may share it.')) return;
+    try {
+      const response = await exportAnalysis(payload, token, format, withSource);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(response.data, null, 2)], {type: 'application/json'}));
+      const anchor = document.createElement('a'); anchor.href = url;
+      anchor.download = `flakydetector-${payload.analysis_id}.${format === 'sarif' ? 'sarif' : 'json'}`;
+      anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setExportError(null);
+    } catch { setExportError('Export denied, expired, or unavailable. No local fallback with source was created.'); }
+  }
   const [filter, setFilter] = useState('');
   const [onlyRisk, setOnlyRisk] = useState(false);
   const visible = payload.results.filter(test =>
     `${test.file_path}::${test.test_name}`.toLowerCase().includes(filter.toLowerCase())
     && (!onlyRisk || test.verdict === 'risk_detected'));
-  const unique = new Map();
-  for (const test of payload.results) for (const pattern of test.patterns) {
-    if (pattern.confidence >= 0.5) unique.set(`${pattern.location.file_path}:${pattern.location.line_start}:${pattern.pattern_type}`, pattern);
-  }
-  const severities = ['critical', 'high', 'medium', 'low'].map(name =>
-    ({name, count: [...unique.values()].filter(pattern => pattern.severity === name).length}));
+  const severities = ['critical', 'high', 'medium', 'low'].map(name => ({name, count: payload.findings.filter(f => f.severity === name).length}));
   const maximum = Math.max(1, ...severities.map(item => item.count));
   return <section className="results-section" aria-live="polite">
     <div className="section-heading">
@@ -57,7 +58,7 @@ export default function Results({payload, snapshot, stale}) {
     <div className="metrics-grid">
       <article className="metric"><span>Target files</span><strong>{payload.files_selected}</strong><small>{payload.files_parsed} parsed · {payload.files_rejected} rejected</small></article>
       <article className="metric"><span>Test candidates</span><strong>{payload.test_candidates}</strong><small>Static discovery · pytest collection not run</small></article>
-      <article className="metric"><span>Unique risk locations</span><strong>{payload.unique_risk_locations}</strong><small>Source file + line + rule</small></article>
+      <article className="metric"><span>Unique risk locations</span><strong>{payload.unique_risk_locations}</strong><small>Source file + line + column + rule</small></article>
       <article className="metric"><span>Affected candidates</span><strong>{payload.tests_with_risk}</strong><small>Not an observed flake rate</small></article>
     </div>
     <article className="card summary-card">
@@ -68,8 +69,22 @@ export default function Results({payload, snapshot, stale}) {
       )}</div>
       {payload.degraded_reason && <p className="notice warning" role="alert">Degraded mode: {payload.degraded_reason}</p>}
       {payload.diagnostics.length > 0 && <div className="diagnostics"><h3>Analysis coverage and limitations</h3>{payload.diagnostics.map((item, index) => <p key={index}>{diagnosticText(item)}</p>)}</div>}
-      <details><summary>Identity and export</summary><p className="hash">Analysis ID: {payload.analysis_id}<br/>Request fingerprint: {payload.request_fingerprint}</p><p className="muted">The JSON report includes captured source code. Review it before sharing.</p><button className="secondary" onClick={() => exportReport(payload)}>Export this report</button></details>
+      <details><summary>Identity and export</summary><p className="hash">Analysis ID: {payload.analysis_id}<br/>Request fingerprint: {payload.request_fingerprint}</p><p className="muted">Source policy: {payload.source_access}. Ordinary JSON and SARIF exports omit source. A separate privileged export requires confirmation.</p>
+        <button className="secondary" disabled={!payload.granted_scopes.includes('export')} onClick={() => download('json')}>Export source-free JSON</button>
+        <button className="secondary" disabled={!payload.granted_scopes.includes('export')} onClick={() => download('sarif')}>Export SARIF 2.1.0</button>
+        <button className="secondary" disabled={!payload.granted_scopes.includes('source:read') || sourceExpired(payload) || payload.source_access !== 'redacted'} onClick={() => download('json', true)}>Export with source…</button>
+        {exportError && <p role="alert">{exportError}</p>}</details>
     </article>
+    <section aria-label="Canonical findings">{payload.findings.map(finding => <article key={finding.finding_id} className={`card finding severity-${finding.severity}`}>
+      <div className="finding-heading"><h3>{finding.rule_id} · {finding.title}</h3><span>{finding.severity} static risk</span></div>
+      <p className="file-name">{finding.location.file_path}:{finding.location.line_start} · {finding.baseline_state}</p>
+      <h4>Observed in source</h4>{finding.facts.map((fact, index) => <p key={index}>{fact}</p>)}
+      <h4>Runtime evidence</h4><p>No runtime history is attached to this static finding. Open the observed-behavior panel separately.</p>
+      <h4>Verdict</h4><p>risk_detected · not an observed flaky test</p>
+      <h4>What this does not prove</h4>{finding.limitations.map((limit, index) => <p key={index}>{limit}</p>)}
+      <details><summary>Suggested controlled experiments</summary>{finding.suggested_experiments.map((step, index) => <p key={index}>{index + 1}. {step}</p>)}</details>
+      <small className="hash">Finding ID: {finding.finding_id}</small>
+    </article>)}</section>
     <div className="filter-bar">
       <label>Find a test or file<input aria-label="Filter results" value={filter} onChange={event => setFilter(event.target.value)} placeholder="test_api.py or TestCheckout"/></label>
       <label className="check"><input type="checkbox" checked={onlyRisk} onChange={event => setOnlyRisk(event.target.checked)}/> Risk verdicts only</label>

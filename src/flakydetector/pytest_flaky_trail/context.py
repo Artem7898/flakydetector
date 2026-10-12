@@ -36,6 +36,12 @@ KNOWN_INI = {
 }
 # Exclude ONLY recorder bookkeeping; all other CLI options are conservative split keys.
 RECORDER_OPTIONS = {
+    "flaky_trail_workspace",
+    "flaky_trail_image",
+    "flaky_trail_seed_id",
+    "flaky_trail_experiment",
+    "flaky_trail_treatment_axis",
+    "flaky_trail_treatment",
     "flaky_trail",
     "flaky_trail_db",
     "flaky_trail_repo",
@@ -49,7 +55,7 @@ def normalized(value: object) -> JsonValue:
     if value is None or isinstance(value, (str, bool, int)):
         return value
     if isinstance(value, float):
-        if not (-float("inf") < value < float("inf")):
+        if not -float("inf") < value < float("inf"):
             raise ValueError("nonfinite option")
         return value
     if isinstance(value, Path):
@@ -83,7 +89,8 @@ def execution_snapshot(config: pytest.Config, order: list[str]) -> dict[str, Jso
         except ValueError:
             if name in config.inicfg:
                 unavailable.append(f"ini:{name}")
-            continue  # An absent optional plugin has no registered default.
+            # An absent optional plugin has no registered default.
+            continue
         try:
             ini[name] = hash_value(value)
         except ValueError:
@@ -106,9 +113,11 @@ def execution_snapshot(config: pytest.Config, order: list[str]) -> dict[str, Jso
         "interpreter_warning_options_hash": hash_value(sys.warnoptions),
         "loaded_plugin_versions_hash": hash_value(
             sorted(
-                (dist.project_name, dist.version)
-                for _, dist in config.pluginmanager.list_plugin_distinfo()
-            )
+                (
+                    (dist.project_name, dist.version)
+                    for _, dist in config.pluginmanager.list_plugin_distinfo()
+                ),
+            ),
         ),
         "collection_order": list(order),
         "collection_count": len(order),

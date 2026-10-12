@@ -1,3 +1,5 @@
+> **Historical 0.2.0/0.2.1 context:** the 0.2.2 candidate changes this scope. See [capability matrix](CAPABILITY_MATRIX.md), [migration](MIGRATION_0.2.2.md) and [current security boundary](https://github.com/Artem7898/flakydetector/blob/main/SECURITY.md). This page is retained as historical context, not current verification.
+
 # Architecture decisions
 
 Transports (CLI, JSON, multipart file, ZIP) prepare bounded inputs and call one `AnalyzeService`. The service owns fixture selection, evidence attribution, rule scoring, classifier invocation and response status. It depends on a small classifier protocol; HTTP handlers do not construct feature vectors or independently decide whether a test is risky.

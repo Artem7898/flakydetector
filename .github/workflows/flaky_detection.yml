@@ -74,19 +74,60 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  runtime-matrix:
+    name: Runtime Python ${{ matrix.python }} pytest ${{ matrix.pytest }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13']
+        pytest: ['8.4.2', '9.0.2']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.18'
+          enable-cache: false
+      - name: Dedicated real-plugin environment
+        env:
+          PYTEST_VERSION: ${{ matrix.pytest }}
+        run: |
+          uv venv .runtime-venv
+          uv pip install --python .runtime-venv/bin/python -e '.[api]' \
+            "pytest==$PYTEST_VERSION" pytest-xdist==3.8.0 pytest-rerunfailures==16.7 pytest-asyncio==1.3.0
+          .runtime-venv/bin/python -m pip freeze > runtime-environment.txt || uv pip freeze --python .runtime-venv/bin/python > runtime-environment.txt
+      - name: No missing-plugin skips allowed
+        env:
+          REQUIRE_RUNTIME_PLUGINS: '1'
+        run: |
+          .runtime-venv/bin/python -m pytest tests/integration/test_execution_evidence.py tests/integration/test_audit_provenance.py tests/integration/test_product_runtime.py -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-versions-${{ matrix.python }}-${{ matrix.pytest }}
+          path: runtime-environment.txt
+
   ci-gate:
     name: CI gate
     if: ${{ always() }}
-    needs: [package, verify-final-zip]
+    needs: [package, verify-final-zip, runtime-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every artifact job to succeed
         env:
           PACKAGE_RESULT: ${{ needs.package.result }}
+          RUNTIME_RESULT: ${{ needs.runtime-matrix.result }}
           VERIFY_RESULT: ${{ needs.verify-final-zip.result }}
         run: |
           set -euo pipefail
           printf 'package=%s verification=%s\n' "$PACKAGE_RESULT" "$VERIFY_RESULT"
           test "$PACKAGE_RESULT" = success
           test "$VERIFY_RESULT" = success
+          test "$RUNTIME_RESULT" = success

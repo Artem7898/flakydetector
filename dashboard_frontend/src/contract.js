@@ -13,6 +13,8 @@ const diagnostic = value => object(value) && string(value.code) && string(value.
 const location = value => object(value) && string(value.file_path)
   && integer(value.line_start) && value.line_start > 0
   && (value.line_end === null || (integer(value.line_end) && value.line_end >= value.line_start))
+  && (value.column_start === null || (integer(value.column_start) && value.column_start > 0))
+  && (value.column_end === null || (integer(value.column_end) && value.column_end > 0))
   && nullableString(value.function_name) && nullableString(value.class_name);
 const severity = value => ['low', 'medium', 'high', 'critical'].includes(value);
 const pattern = value => object(value) && string(value.pattern_type) && string(value.category)
@@ -43,7 +45,7 @@ const COUNTS = ['total_files_analyzed', 'total_patterns_found', 'files_selected'
   'tests_with_risk', 'evidence_links', 'diagnostic_groups'];
 
 export function validateAnalysis(value) {
-  if (!object(value) || value.schema_version !== '2.1.0'
+  if (!object(value) || value.schema_version !== '3.0.0'
       || !['ok', 'partial', 'error'].includes(value.status)) {
     throw new Error('Unsupported analysis response; update the frontend and backend together.');
   }
@@ -56,6 +58,14 @@ export function validateAnalysis(value) {
       || !arrayOf(value.source_snapshots, item => object(item) && string(item.file_path)
         && hash(item.sha256) && string(item.content))) {
     throw new Error('Invalid analysis contract: unsafe or missing nested fields.');
+  }
+  if (!arrayOf(value.findings, f => object(f) && hash(f.finding_id) && string(f.rule_id) && string(f.rule_version)
+      && string(f.title) && severity(f.severity) && location(f.location) && arrayOf(f.facts, string)
+      && arrayOf(f.limitations, string) && arrayOf(f.suggested_experiments, string) && arrayOf(f.test_nodeids, string))
+      || !object(value.source_digests) || !Object.values(value.source_digests).every(hash)
+      || !['disabled', 'denied', 'redacted'].includes(value.source_access) || !arrayOf(value.granted_scopes, string)
+      || !string(value.workspace) || !nullableString(value.source_grant) || !nullableString(value.source_expires_at)) {
+    throw new Error('Invalid evidence/security contract.');
   }
   if (value.files_selected !== value.files_parsed + value.files_rejected
       || value.total_files_analyzed !== value.files_parsed

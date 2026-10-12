@@ -1,33 +1,45 @@
-"""Composition root: bounded workers and explicit optional-model readiness."""
+"""Secure composition root: scoped access, no-store responses and killable workers."""
 
 from __future__ import annotations
 
-import asyncio
-import hmac
-import threading
-from collections.abc import AsyncGenerator, Callable
-from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import secrets
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from flakydetector.application import AnalyzeService
-from flakydetector.classifier.catboost_model import FlakyClassifier, ModelUnavailable
+from flakydetector import __version__
+from flakydetector.security.auth import (
+    SCOPES,
+    Credential,
+    Principal,
+    authenticate,
+    is_loopback,
+    load_credentials,
+)
 from flakydetector.utils.config import Settings
-
-T = TypeVar("T")
+from flakydetector.workers.supervisor import (
+    ProcessSupervisor,
+    WorkerBusy,
+    WorkerFailure,
+    WorkerTimeout,
+)
 
 
 class BodyLimitMiddleware:
     def __init__(self, app: ASGIApp, max_bytes: int) -> None:
-        self.app, self.max_bytes = app, max_bytes
+        self.app, self.max_bytes = (app, max_bytes)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -44,7 +56,9 @@ class BodyLimitMiddleware:
                 total += len(message.get("body", b""))
                 if total > self.max_bytes:
                     await JSONResponse({"detail": "Request byte limit exceeded"}, status_code=413)(
-                        scope, receive, send
+                        scope,
+                        receive,
+                        send,
                     )
                     return
                 if not message.get("more_body", False):
@@ -58,76 +72,72 @@ class BodyLimitMiddleware:
         await self.app(scope, replay, send)
 
 
-@dataclass(slots=True, kw_only=True)
+@dataclass(slots=True)
 class ApplicationContext:
     settings: Settings
-    service: AnalyzeService
-    pool: ThreadPoolExecutor = field(
-        default_factory=lambda: ThreadPoolExecutor(
-            max_workers=2, thread_name_prefix="flaky-analysis"
-        )
-    )
-    slots: threading.BoundedSemaphore = field(default_factory=lambda: threading.BoundedSemaphore(2))
-    model: FlakyClassifier | None = None
+    supervisor: ProcessSupervisor
+    credentials: tuple[Credential, ...]
+    source_signing_key: bytes = field(default_factory=lambda: secrets.token_bytes(32), repr=False)
 
-    async def run(self, work: Callable[[], T]) -> T:
-        if not self.slots.acquire(blocking=False):
-            raise HTTPException(503, "Analysis capacity exhausted; retry later")
+    async def analyze(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            future = self.pool.submit(work)
-        except RuntimeError:
-            self.slots.release()
-            raise HTTPException(503, "Analysis worker is shutting down") from None
-        future.add_done_callback(lambda _: self.slots.release())
-        try:
-            # A timed-out job retains its slot until it finishes: no runaway worker queue.
-            return await asyncio.wait_for(
-                asyncio.shield(asyncio.wrap_future(future)), timeout=self.settings.timeout_seconds
-            )
-        except TimeoutError:
-            raise HTTPException(
-                504, "Analysis deadline exceeded; no successful result is available"
-            ) from None
-        except ModelUnavailable as exc:
-            raise HTTPException(503, str(exc)) from exc
+            return await self.supervisor.run({"operation": "analyze", **payload})
+        except WorkerBusy as exc:
+            raise HTTPException(503, str(exc)) from None
+        except WorkerTimeout as exc:
+            raise HTTPException(504, str(exc)) from None
+        except WorkerFailure:
+            raise HTTPException(422, "Analysis worker could not complete this input") from None
 
 
 def context(request: Request) -> ApplicationContext:
     return cast(ApplicationContext, request.app.state.context)
 
 
-def authorize(request: Request) -> None:
-    token = context(request).settings.api_token
-    if token and not hmac.compare_digest(
-        request.headers.get("authorization", ""), f"Bearer {token}"
-    ):
-        raise HTTPException(401, "Bearer token required", headers={"WWW-Authenticate": "Bearer"})
+def require(request: Request, scope: str, workspace: str = "local") -> Principal:
+    principal = cast(Principal | None, getattr(request.state, "principal", None))
+    if principal is None or not principal.permits(scope, workspace):
+        raise HTTPException(403, "Required capability or workspace grant is missing")
+    return principal
 
 
-def create_app(
-    settings: Settings | None = None, *, service: AnalyzeService | None = None
-) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     options = settings or Settings.from_env()
-    ctx = ApplicationContext(settings=options, service=service or AnalyzeService(options))
+    credentials = load_credentials(options.credentials_file)
+    if options.api_token:
+        credentials = (
+            *credentials,
+            Credential(
+                hashlib.sha256(options.api_token.encode()).hexdigest(),
+                Principal("operator", frozenset({"local"}), SCOPES),
+            ),
+        )
+    if options.profile == "shared" and (not credentials):
+        raise ValueError("Shared mode requires valid credentials")
+    if (
+        options.profile == "shared"
+        and len(
+            {
+                workspace
+                for credential in credentials
+                for workspace in credential.principal.workspaces
+            }
+        )
+        > 1
+    ):
+        raise ValueError(
+            "One workspace per shared instance; use separate restricted containers for independent trust domains",
+        )
+    ctx = ApplicationContext(options, ProcessSupervisor(options), credentials)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-        if options.model_path is not None and service is None:
-            model = FlakyClassifier()
-            try:
-                model.load_model(options.model_path)
-            except ModelUnavailable as exc:
-                ctx.service.degraded_reason = str(exc)
-            else:
-                ctx.model = model
-                ctx.service.classifier = model
-                ctx.service.model_version = model.manifest.model_version if model.manifest else None
         yield
-        ctx.pool.shutdown(wait=True, cancel_futures=True)
+        await ctx.supervisor.close()
 
     api = FastAPI(
-        title="FlakyDetector risk analysis",
-        version="0.2.1rc1",
+        title="FlakyDetector evidence and risk analysis",
+        version=__version__,
         lifespan=lifespan,
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
@@ -140,27 +150,100 @@ def create_app(
         allow_headers=["Content-Type", "Authorization"],
     )
     api.add_middleware(BodyLimitMiddleware, max_bytes=options.max_archive_bytes + 65536)
-    # Local import avoids a composition-root / route import cycle.
-    from flakydetector.dashboard.routes import router
 
-    api.include_router(router, prefix="/api/v1", dependencies=[Depends(authorize)])
+    async def security_boundary(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path = request.url.path
+        # Local loopback trust is not a permission for DNS-rebinding Host names.
+        if (
+            options.profile == "local"
+            and (request.url.hostname or "") != "localhost"
+            and (not is_loopback(request.url.hostname or ""))
+        ):
+            return JSONResponse(
+                {"detail": "Local profile requires a loopback Host"},
+                status_code=400,
+                headers={"Cache-Control": "no-store"},
+            )
+        if path.startswith("/api/v1"):
+            origin = request.headers.get("origin")
+            if (
+                origin
+                and request.method not in {"GET", "HEAD", "OPTIONS"}
+                and (origin not in options.cors_origins)
+                and (origin.rstrip("/") != str(request.base_url).rstrip("/"))
+            ):
+                return JSONResponse(
+                    {"detail": "Origin is not permitted"},
+                    status_code=403,
+                    headers={"Cache-Control": "no-store"},
+                )
+            peer = request.client.host if request.client else ""
+            if options.profile == "local" and (not is_loopback(peer)):
+                return JSONResponse(
+                    {
+                        "detail": "Local profile accepts loopback clients only; configure shared profile explicitly",
+                    },
+                    status_code=403,
+                    headers={"Cache-Control": "no-store"},
+                )
+            if credentials:
+                principal = authenticate(request.headers.get("authorization", ""), credentials)
+                if principal is None:
+                    return JSONResponse(
+                        {"detail": "Bearer token required"},
+                        status_code=401,
+                        headers={"WWW-Authenticate": "Bearer", "Cache-Control": "no-store"},
+                    )
+            else:
+                principal = Principal("local-operator", frozenset({"local"}), SCOPES)
+            request.state.principal = principal
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
-    def health() -> dict[str, str]:
-        return {"status": "alive", "version": "0.2.1rc1"}
+    api.middleware("http")(security_boundary)
 
-    def ready() -> JSONResponse:
-        degraded = ctx.service.degraded_reason
+    async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Pydantic error.input and ctx may contain the COMPLETE source or credentials.
         return JSONResponse(
             {
-                "status": "degraded" if degraded else "ready",
-                "model": "loaded" if ctx.service.classifier else "disabled",
-                "reason": degraded,
+                "detail": "Request validation failed; verify the API schema. Submitted values are not echoed.",
             },
-            status_code=503 if degraded else 200,
+            status_code=422,
         )
 
-    api.add_api_route("/health", health, methods=["GET"])
-    api.add_api_route("/ready", ready, methods=["GET"])
+    api.exception_handler(RequestValidationError)(validation_error)
+
+    async def safe_value_error(request: Request, exc: ValueError) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "Input violates a validation or policy constraint."}, status_code=422
+        )
+
+    api.exception_handler(ValueError)(safe_value_error)
+
+    from flakydetector.dashboard.routes import router
+
+    api.include_router(router, prefix="/api/v1")
+
+    def health() -> dict[str, str]:
+        return {"status": "alive", "version": __version__}
+
+    api.get("/health")(health)
+
+    def ready() -> JSONResponse:
+        # Model loading happens in bounded child workers. Readiness is core availability,
+        # not an unexecuted claim that optional model artifacts were validated.
+        return JSONResponse(
+            {
+                "status": "ready",
+                "model": "configured-not-prevalidated" if options.model_path else "disabled",
+                "source_mode": options.source_mode,
+            },
+        )
+
+    api.get("/ready")(ready)
 
     static = Path(__file__).parent / "static"
     if static.is_dir():

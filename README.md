@@ -1,20 +1,41 @@
-# FlakyDetector 0.2.1rc1
+# FlakyDetector     
 
 **Documentation:** [FlakyDetector documentation on Read the Docs](https://flakydetector.readthedocs.io/en/latest/).
 
-**Audit-remediation release candidate for the supplied 0.2.0 audit, not a stable release.** Python backend by Artem Alimpiev.
+Python backend and developer tooling by **Artem Alimpiev**. Application version: **0.2.2**,
+following the maintainer's release numbering. This working-tree update is not proof of a published
+release, a certified multitenant service or an independently evaluated classifier.
+The published `latest` documentation follows the merged default branch; an unmerged candidate
+can differ from that website.
 
-FlakyDetector inspects Python test source, preserves attributable evidence and optionally records pytest attempts. A static pattern is **not** proof of intermittent failure. `no_known_risk` is not “stable”; `risk_score` is a heuristic index, not a probability. No evaluated production model or real-world accuracy claim is shipped.
+FlakyDetector keeps three things separate: **static risks**, **observed execution behavior**,
+and **unverified explanations**. A network pattern is not proof of a network call at runtime;
+pass-on-retry is not proof of its cause. `no_known_risk` does not mean stable.
 
-This candidate changes data-integrity boundaries, release checks and the analysis workspace. See [the implementation status](docs/IMPLEMENTATION_STATUS.RU.md), [migration guide](docs/MIGRATION_0.2.1.md), [limitations](docs/LIMITATIONS.md) and [benchmark protocol](docs/BENCHMARK.md). Historical validation in `docs/history/0.2.0/` does not certify these bytes. Verification of a final ZIP is produced **beside** the ZIP and includes its SHA-256.
+## What is included
 
-## Run the application
+- Versioned static finding identities, source-free **SARIF 2.1.0**, trusted-baseline policy,
+  job summaries and a reusable GitHub Action.
+- An opt-in pytest phase recorder, append-only/idempotent events and replayable monitors.
+- Exact-test quarantine with an owner, issue, approval, expiry, renewal and revocation audit.
+- Separate Finding and Runtime evidence views; unavailable metrics stay unavailable.
+- Scoped credentials, source-free API defaults, redacted expiring source views and explicit exports.
+- Killable Linux analysis processes with CPU, address-space, wall-time and output limits.
+- Selective mock/control-flow, HTTP client and resource-lifetime analysis; conservative impact hints.
 
-Python 3.12+ and Node.js 22. The supplied lock files are retained; dependencies must be available from your package registries.
+[Capabilities and unfinished boundaries](docs/CAPABILITY_MATRIX.md) ·
+[Migration](docs/MIGRATION_0.2.2.md) · [Security](SECURITY.md) ·
+[SARIF and baseline](docs/SARIF_ACTION.md) · [Monitors](docs/MONITORS.md)
+
+## Run locally
+
+Use Linux, **Python 3.12 or 3.13** and **Node.js 22**. Other runtimes are not covered by the
+candidate's complete process/runtime gate. Keep the supplied lockfiles.
 
 ```bash
-uv sync --locked --extra api --extra dev --extra ml --extra github
-uv run --frozen uvicorn flakydetector.dashboard.main:app --host 127.0.0.1 --port 8001
+uv sync --locked --extra api --extra dev --extra ml --extra github --extra docs
+uv run --frozen flakydetector-serve --host 127.0.0.1 --port 8001 \
+  --evidence-db "$HOME/.local/share/flakydetector/evidence-v4.db"
 ```
 
 In another terminal:
@@ -25,102 +46,149 @@ npm ci --ignore-scripts
 npm run dev
 ```
 
-Open `http://127.0.0.1:3000`. API docs: `http://127.0.0.1:8001/api/docs`.
-For a minimal application without development or ML dependencies, use `uv sync --locked --extra api` instead. Static analysis needs no model or API token; optional integrations are unavailable unless explicitly configured.
+Open `http://127.0.0.1:3000`; API reference is `http://127.0.0.1:8001/api/docs`.
+The UI has a Static analysis and a Runtime evidence section, **not an account-management admin**.
+No model, cloud service or runtime history is needed for static scanning.
+A minimal server installation is `uv sync --locked --extra api`.
 
-For the combined application:
+### Select files for analysis
+
+Choose **File / ZIP** in the analysis panel, then select one `.py` file or `.zip` archive.
+The picker shows all files; the application checks the extension and size after selection
+(Python: 1 MB; ZIP: 10 MB). You can also drop a file or ZIP onto the upload area.
+Unsupported files show an error and are not submitted. To analyze a directory or several
+files, create a ZIP containing the test files and relevant `conftest.py` files first.
+
+The separate **Import execution history** field accepts recorder `.jsonl` events only;
+it does not analyze Python source. Both inputs avoid native extension filters, which can
+hide entries in desktop file choosers. Canceling selection preserves the previous source;
+**Clear file and return to code** restores the pasted-code draft.
+
+After replacing frontend files, restart Vite (or rebuild the Docker image) and reload the
+browser with `Ctrl+Shift+R`. The header, `/health` and OpenAPI product version should be `0.2.2`.
+
+Full source views are disabled even locally. Enable best-effort-redacted views explicitly with
+`--source-mode redacted`, then request a view in the UI. They expire after 300 seconds by default.
+Files already downloaded cannot be revoked or erased by that expiry.
+
+## Combined container
 
 ```bash
+export FLAKY_API_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up --build
 ```
 
-The combined container serves the UI and API at `http://127.0.0.1:8001`. The Docker scenario must still pass the artifact-bound smoke gate on a Docker-capable host. A Dockerfile is not a build result.
+The container serves frontend and API at `http://127.0.0.1:8001`. Enter the token from your
+local environment in the UI; do not commit or post it. Compose requires authentication,
+publishes only on host loopback, drops capabilities and uses a read-only root filesystem.
+The container's internal `0.0.0.0` listener is not a public host-port permission.
+Use a TLS ingress and the shared profile before remote deployment.
+**One workspace per shared instance** is enforced. Separate trust domains need separately
+restricted deployments; the child process is not a filesystem/network sandbox.
 
-## Workspace
-
-Paste code or choose a Python file / ZIP. Switching back clears the upload without discarding the code draft. Editing the source, file, mode or ML settings marks the old analysis as outdated. Requests use immutable snapshots and latest-request identifiers; stale replies cannot replace newer results.
-
-The output distinguishes selected/parsed/rejected files, static test candidates, affected tests, unique risk locations and evidence links. An evidence card opens the exact captured source and highlights the finding. Exports **include source code**: review them before sharing. The token remains in memory and is not exported.
-
-The optional search panel labels retrieved explanations as unverified hypotheses. Changing a query marks its old result as outdated. Run-history statistics remain unavailable rather than being replaced with fabricated zeroes.
-
-## CLI and HTTP
+## Static scan, SARIF and CI policy
 
 ```bash
-uv run --frozen flakydetector tests/corpus --format json --fail-on none
-uv run --frozen flakydetector /path/to/project/tests --format json --fail-on high
+uv run --frozen flakydetector . --isolated --format sarif \
+  --output artifacts/flakydetector.sarif --fail-on high
 ```
 
-CLI accepts a file, directory or ZIP. Directory/ZIP selection includes `test_*.py`, `*_test.py` and ancestor `conftest.py`. Submitted Python is parsed, never imported/executed. Uploaded ZIP entries are read in memory.
+Exit `0`: analysis completed and policy passed; `1`: risk policy violation;
+`2`: operational failure, unsupported/incomplete analysis or invalid policy.
+`--fail-on none` does not make incomplete analysis successful.
+SARIF is always source-free. JSON and text remain supported.
 
-Exit codes: `0` completed and passed the selected rule policy; `1` policy violation; `2` error, incomplete or degraded analysis. `--fail-on none` disables the risk gate, not errors.
+Baseline acceptance is explicit. Create it from a reviewed base checkout, outside the PR's
+control, using its exact commit SHA. Reuse the same project root and scan scope.
 
-HTTP endpoints share `AnalyzeService`:
+```bash
+uv run --frozen flakydetector . --write-baseline /tmp/flaky-baseline.json \
+  --revision "$(git rev-parse HEAD)" --accepted-by ArtemAlimpiev --fail-on none
+# In the head checkout, replace BASE_SHA with that exact reviewed base commit.
+uv run --frozen flakydetector . --baseline /tmp/flaky-baseline.json \
+  --baseline-revision BASE_SHA --new-only --format sarif \
+  --output artifacts/flakydetector.sarif
+```
 
-- `POST /api/v1/analyze`: JSON `file_content`, optional `file_path`, `log_content`, `use_ml_classifier`.
-- `POST /api/v1/analyze/file` and `/directory`: multipart `.py` or `.zip`; optional `use_ml` query parameter.
-- `GET /health`, `/ready`, `/api/v1/features/importance`, `/api/v1/search_similar`.
+The GitHub Action can compute a baseline from trusted base Git objects instead. Do not use
+PR-controlled analyzer code in a privileged `pull_request_target` job. Pin the consumer Action
+to a reviewed immutable commit **after it has been published**; no `v0.2.2` tag is claimed here.
+See [the complete workflow example](docs/SARIF_ACTION.md).
 
-`GET /api/v1/stats/{repository}` explicitly returns 501. Model/RAG endpoints report unavailability instead of inventing a result. See [API contract 2.1](docs/api_reference.md).
+## Record runtime evidence
 
-## Record comparable pytest observations
-
-The plugin is opt-in. Prefer a new database for newly recorded v3 evidence:
+Run the recorder only against tests you have explicitly authorized to execute.
+The web analyzer never executes uploaded tests or pytest collection.
 
 ```bash
 uv run --frozen pytest tests --flaky-trail \
-  --flaky-trail-db ./flaky_trails_v3.db \
-  --flaky-trail-repo example/project \
-  --flaky-trail-env local-services-v1-seed-42
+  --flaky-trail-db /tmp/flaky-events.db \
+  --flaky-trail-repo owner/project --flaky-trail-workspace local \
+  --flaky-trail-env controlled-services-v1 \
+  --flaky-trail-image runner-image-v1 --flaky-trail-seed-id fixed-seeds-v1
+uv run --frozen flakydetector-evidence --db /tmp/flaky-events.db \
+  --workspace local --repo owner/project report --output /tmp/flaky-runtime.json
 ```
 
-Use a non-secret `--flaky-trail-env` identity for controlled external service/data/seed state. The recorder stores the effective pytest configuration fingerprint, collection order, worker identity and attempt phases. This is comparability under **recorded** context, not a proof that every external input is controlled.
+These identifiers **describe** your controlled setup. They do not freeze the clock, set a seed,
+reset a database or attest to external service stability. Missing/dirty/incompatible provenance
+cannot produce high-confidence comparable-run conclusions.
 
-Schema-2 databases migrate additively to schema 3. Existing rows retain `provenance_version=0`; they are preserved but cannot silently become trusted training labels. Re-record executions rather than editing old provenance flags.
+Upload source-free event metadata to the configured server, or export it and use the UI:
 
 ```bash
-uv run --frozen python scripts/extract_dataset.py \
-  --db flaky_trails_v3.db --source-root . \
-  --output /tmp/flaky-observations.jsonl --min-runs 5
+uv run --frozen flakydetector-evidence --db /tmp/flaky-events.db \
+  --workspace local --repo owner/project upload --url http://127.0.0.1:8001
+# Alternative offline export:
+uv run --frozen flakydetector-evidence --db /tmp/flaky-events.db \
+  --workspace local --repo owner/project export --output /tmp/flaky-events.jsonl
 ```
 
-The feature vector remains 42-dimensional but its semantic schema is **2.1.0**. Old model manifests are rejected. Training additionally requires reviewed labels, matching source and independent repository/target-clone splits. This candidate does not generate or substitute a synthetic production benchmark.
+Remote upload requires HTTPS, a scoped token in `FLAKY_API_TOKEN` and `--allow-remote`.
+Tracebacks are removed from upload/export; event identifiers can themselves be sensitive.
+Avoid secrets in parametrized test IDs. In the UI select workspace `local` and the exact repo
+`owner/project`. Runtime evidence is real only after you ingest actual recorded events.
 
-## Verify and package
+## Quarantine, history and analysis limits
+
+[Quarantine guide](docs/QUARANTINE.md) describes exact selectors and TTL. All tests still run;
+quarantine changes a gate decision, not the recorded outcome. Static waivers and baselines are
+not runtime quarantine. Renewal preserves the original debt age.
+
+History defaults to at most 10,000 events per HTTP replay. Larger histories require paged
+export and bounded offline processing; a scalable rollup service is not included.
+Pruning is an explicit operation, not a silently installed scheduler:
+
+```bash
+uv run --frozen flakydetector-evidence --db /tmp/flaky-events.db \
+  --workspace local --repo owner/project prune --retention-days 30
+```
+
+This prunes the new execution-event component, **not** every legacy phase table, backups,
+lifecycle or quarantine audit table. Define those retention policies at deployment.
+
+## Verify the candidate
 
 ```bash
 uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 uv run --frozen pyright
-uv run --frozen pytest -q
+uv run --frozen pytest -q --cov=flakydetector
+uv run --frozen python scripts/validate_sarif.py
 (cd dashboard_frontend && REQUIRE_RENDER_TESTS=1 npm test && npm run build)
-uv build
-uv run --frozen python scripts/installed_wheel_smoke.py
-python scripts/build_release.py --output artifacts/flakydetector-0.2.1rc1.zip
-python scripts/check_release.py artifacts/flakydetector-0.2.1rc1.zip
-python scripts/verify_release.py artifacts/flakydetector-0.2.1rc1.zip \
+python scripts/build_release.py --output artifacts/flakydetector-0.2.2.zip
+python scripts/check_release.py artifacts/flakydetector-0.2.2.zip
+python scripts/verify_release.py artifacts/flakydetector-0.2.2.zip \
   --output artifacts/verification --python 3.12
 ```
 
-The verifier extracts **the final ZIP**, runs real commands, records failures/blocks and verifies the shipped source files were not altered. `--without-docker` is explicitly a partial verification. Real React rendering is mandatory in the complete gate; a local Node-only run reports the rendering test as skipped when npm dependencies are unavailable.
+The GitHub gate also requires real pytest/xdist/rerunfailures combinations. Missing plugins may
+skip local integration cases, but cannot silently pass the mandatory matrix. The SARIF schema
+check downloads the official OASIS schema and records its digest. A schema-valid file is not
+proof that GitHub accepted an upload; actual Code Scanning ingestion is a separate acceptance test.
 
-To run the container gate alone:
-
-```bash
-python scripts/container_smoke.py artifacts/flakydetector-0.2.1rc1.zip \
-  --report artifacts/container-smoke.json
-```
-
-The release manifest detects drift/corruption, not publisher authenticity. Use the accompanying checksum to identify the archive you tested. Review optional live-provider, retry-plugin and browser checks separately from the core gates.
+Verification belongs beside the exact archive. Historical reports, synthetic rule examples,
+JSX transpilation and Node-only tests do not certify Docker, a browser, an installed wheel or
+independent precision. No production ML model or calibrated probability was created in this release.
 
 [Repository](https://github.com/Artem7898/flakydetector) · MIT License · Artem Alimpiev
-
-### Optional real-browser smoke
-
-With the local application already running and Playwright/Chromium installed in a separate tooling environment:
-
-```bash
-python scripts/browser_smoke.py --url http://127.0.0.1:8001 --output artifacts/browser
-```
-
-Use port 3000 for the Vite dev server. This gate exercises real HTTP analysis, source navigation, stale results, settings changes, file/clear transitions and syntax-error rendering. It writes screenshots only when actually run; missing tooling is recorded as blocked. It is not included in the core locked Python dependencies and must not be described as passed merely because its script exists.

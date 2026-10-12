@@ -3,6 +3,40 @@
 Changes to FlakyDetector are recorded here. Entries describe implementation, not an
 accuracy benchmark or a guarantee that every release gate has passed.
 
+## [0.2.2] - working tree; publication not implied
+
+### Fixed
+- Stop hiding files behind native picker extension filters. Validate one Python file or ZIP
+  after selection, report invalid type/size explicitly, and offer drag-and-drop as an alternative.
+- Clearly separate Python/ZIP analysis from recorder JSONL import. Cancel preserves selection;
+  rejection clears the old upload and prevents a stale pending response from being accepted.
+- Accept case-insensitive `.py`/`.zip` upload extensions consistently in UI and HTTP handlers.
+- Correct the mistakenly generated `0.3.0rc1` product label to the maintainer's **0.2.2**.
+  Align Python/npm metadata, locks, UI, health, OpenAPI, SARIF tool version and documentation.
+  API/feature `3.0.0`, rule-set, SARIF-format and database/event versions are unchanged.
+
+### Added
+- Source-free SARIF 2.1.0, versioned finding identity and trusted-base new/worsened policy.
+- Consumer Action with isolated trusted analyzer, annotations, summary and optional Code Scanning upload.
+- Event schema 1/provenance 4, idempotent uploads, replayable monitors and explicit metrics/SLO policies.
+- Scoped credentials, hard Linux process limits, source grants/expiry and privacy-safe errors/exports.
+- Exact-test quarantine with TTL, ownership, renew/revoke audit and a post-execution gate.
+- Runtime evidence UI, selected semantic rules, fixture impact hints and claim-level triage.
+- Required real-plugin CI matrix, SARIF schema gate and synthetic regression corpus tools.
+
+### Changed
+- Fix control-flow mock suppression; API and feature semantic schema are now 3.0.0.
+- Source return is disabled by default. Shared instances are restricted to one workspace.
+- Raw source is not persisted by the shared API; runtime event uploads omit tracebacks.
+- An observed positive label no longer requires an invented root-cause label.
+- Shared RAG/model diagnostics return unavailable pending isolated serving; offline adapters remain.
+
+### Acceptance boundaries
+- This is a working-tree update; the version number does not certify a published release. Real Code Scanning ingestion, browser/container/wheel/Sphinx,
+  supported plugin matrix and strict static checks require their actual verification records.
+- No independent corpus, calibrated model, encrypted source store, generalized Python data-flow,
+  full multitenant sandbox or automatic deployment was produced.
+
 ## [Unreleased]
 
 ### Documentation

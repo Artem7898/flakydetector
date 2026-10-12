@@ -1,3 +1,5 @@
+> **Historical 0.2.0/0.2.1 context:** the 0.2.2 candidate changes this scope. See [capability matrix](CAPABILITY_MATRIX.md), [migration](MIGRATION_0.2.2.md) and [current security boundary](https://github.com/Artem7898/flakydetector/blob/main/SECURITY.md). This page is retained as historical context, not current verification.
+
 # Supported scope and explicit limitations
 
 Static analysis intentionally does not execute source or pytest collection. Supported rules include sync/async functions, direct import aliases, nested lexical attribution, literal/dotted mock targets, matching resource contexts, direct module-object mutations, common timing/network/order/precision indicators and local branch complexity. Paired/metamorphic tests exercise aliasing, wrapping, shadowing and relevant/unrelated mocks.

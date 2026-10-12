@@ -33,13 +33,12 @@ class TrailStorage:
             version = int(conn.execute("PRAGMA user_version").fetchone()[0])
             if version > 3:
                 raise ValueError("Trace database uses a newer schema")
-            conn.execute("""CREATE TABLE IF NOT EXISTS test_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_timestamp TEXT NOT NULL, repo_name TEXT, environment TEXT)""")
-            conn.execute("""CREATE TABLE IF NOT EXISTS test_trails (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL,
-                nodeid TEXT NOT NULL, outcome TEXT NOT NULL, duration REAL NOT NULL,
-                traceback TEXT, FOREIGN KEY(run_id) REFERENCES test_runs(id))""")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS test_runs (\n                id INTEGER PRIMARY KEY AUTOINCREMENT,\n                run_timestamp TEXT NOT NULL, repo_name TEXT, environment TEXT)",
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS test_trails (\n                id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL,\n                nodeid TEXT NOT NULL, outcome TEXT NOT NULL, duration REAL NOT NULL,\n                traceback TEXT, FOREIGN KEY(run_id) REFERENCES test_runs(id))",
+            )
             # Preserve legacy rows, but mark missing provenance as empty, never comparable.
             additions = {
                 "test_runs": {
@@ -62,19 +61,14 @@ class TrailStorage:
                         conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS runs_session ON test_runs(session_id)")
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS trails_identity ON test_trails(nodeid, source_hash, environment_hash)"
+                "CREATE INDEX IF NOT EXISTS trails_identity ON test_trails(nodeid, source_hash, environment_hash)",
             )
-            conn.execute("""CREATE TABLE IF NOT EXISTS phase_reports (
-                run_id INTEGER NOT NULL, nodeid TEXT NOT NULL, worker_id TEXT NOT NULL,
-                attempt INTEGER NOT NULL, phase TEXT NOT NULL,
-                outcome TEXT NOT NULL, duration REAL NOT NULL, traceback TEXT, wasxfail INTEGER NOT NULL,
-                source_hash TEXT NOT NULL, environment_hash TEXT NOT NULL,
-                PRIMARY KEY(run_id, nodeid, worker_id, attempt, phase),
-                FOREIGN KEY(run_id) REFERENCES test_runs(id))""")
-            conn.execute("""CREATE TABLE IF NOT EXISTS execution_contexts (
-                run_id INTEGER NOT NULL, worker_id TEXT NOT NULL,
-                environment_hash TEXT NOT NULL, snapshot_json TEXT NOT NULL,
-                PRIMARY KEY(run_id, worker_id), FOREIGN KEY(run_id) REFERENCES test_runs(id))""")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS phase_reports (\n                run_id INTEGER NOT NULL, nodeid TEXT NOT NULL, worker_id TEXT NOT NULL,\n                attempt INTEGER NOT NULL, phase TEXT NOT NULL,\n                outcome TEXT NOT NULL, duration REAL NOT NULL, traceback TEXT, wasxfail INTEGER NOT NULL,\n                source_hash TEXT NOT NULL, environment_hash TEXT NOT NULL,\n                PRIMARY KEY(run_id, nodeid, worker_id, attempt, phase),\n                FOREIGN KEY(run_id) REFERENCES test_runs(id))",
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS execution_contexts (\n                run_id INTEGER NOT NULL, worker_id TEXT NOT NULL,\n                environment_hash TEXT NOT NULL, snapshot_json TEXT NOT NULL,\n                PRIMARY KEY(run_id, worker_id), FOREIGN KEY(run_id) REFERENCES test_runs(id))",
+            )
             conn.execute("PRAGMA user_version=3")
 
     def start_run(
@@ -183,7 +177,7 @@ class TrailStorage:
                 )
                 for row in rows
             }
-            terminal = self._terminal(reports) if phase == "teardown" else "incomplete"
+            terminal = self._terminal(reports)
             conn.execute(
                 "DELETE FROM test_trails WHERE run_id=? AND nodeid=? AND worker_id=? AND attempt=?",
                 (run_id, nodeid, worker_id, attempt),
@@ -210,31 +204,40 @@ class TrailStorage:
         if "setup" not in reports or "teardown" not in reports:
             return "incomplete"
         if any(
-            outcome in {"failed", "rerun"} and not xfail
-            for phase, (outcome, xfail) in reports.items()
-            if phase != "call"
+            (
+                outcome in {"failed", "rerun"} and (not xfail)
+                for phase, (outcome, xfail) in reports.items()
+                if phase != "call"
+            ),
         ):
             return "error"
         call = reports.get("call")
-        if call and call[0] in {"failed", "rerun"} and not call[1]:
+        if call and call[0] in {"failed", "rerun"} and (not call[1]):
             return "failed"
-        if any(xfail and outcome != "passed" for outcome, xfail in reports.values()):
+        if any((xfail and outcome != "passed" for outcome, xfail in reports.values())):
             return "xfailed"
-        if any(outcome == "skipped" for outcome, _ in reports.values()):
+        if any((outcome == "skipped" for outcome, _ in reports.values())):
             return "skipped"
         if call is None:
             return "incomplete"
-        if any(outcome == "xpassed" for outcome, _ in reports.values()):
+        if any((outcome == "xpassed" for outcome, _ in reports.values())):
             return "xpassed"
         if any(
-            outcome not in {"passed", "failed", "rerun", "skipped"}
-            for outcome, _ in reports.values()
+            (
+                outcome not in {"passed", "failed", "rerun", "skipped"}
+                for outcome, _ in reports.values()
+            ),
         ):
             return "unknown"
-        if any(xfail for _, xfail in reports.values()):
+        if any((xfail for _, xfail in reports.values())):
             return "xpassed"
         return (
             "passed"
-            if all(outcome == "passed" for outcome, _ in reports.values())
+            if all((outcome == "passed" for outcome, _ in reports.values()))
             else "incomplete"
         )
+
+    @staticmethod
+    def terminal_outcome(reports: dict[str, tuple[str, bool]]) -> str:
+        """Public phase normalization shared by the ledger and runtime monitors."""
+        return TrailStorage._terminal(reports)

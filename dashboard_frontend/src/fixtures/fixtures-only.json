@@ -1,14 +1,26 @@
 {
-  "schema_version": "2.1.0",
-  "analysis_id": "2a96cff8-8242-4404-9d36-36a98f1ccbf0",
-  "request_fingerprint": "b6c14c5d643ec48af06f4249669de60d0b4283df8a7e99bb959098aea5896163",
-  "source_snapshots": [
-    {
-      "file_path": "test_case.py",
-      "sha256": "35f05a9101e85f0d7729fbee279f4409e9dc8574300bedb4774819bf3b1c499c",
-      "content": "import pytest\n@pytest.fixture\ndef test_fixture(): pass\n"
-    }
+  "schema_version": "3.0.0",
+  "findings": [],
+  "source_digests": {
+    "test_case.py": "35f05a9101e85f0d7729fbee279f4409e9dc8574300bedb4774819bf3b1c499c"
+  },
+  "source_grant": null,
+  "source_access": "disabled",
+  "source_expires_at": null,
+  "granted_scopes": [
+    "analyze",
+    "events:read",
+    "events:write",
+    "export",
+    "findings:read",
+    "lifecycle:write",
+    "quarantine:write",
+    "source:read"
   ],
+  "workspace": "local",
+  "analysis_id": "8e87e0e6-0215-4c92-b191-4e5979a44a29",
+  "request_fingerprint": "b6c14c5d643ec48af06f4249669de60d0b4283df8a7e99bb959098aea5896163",
+  "source_snapshots": [],
   "status": "error",
   "total_files_analyzed": 1,
   "total_patterns_found": 0,
@@ -49,7 +61,7 @@
       "level": "error"
     }
   ],
-  "feature_schema_version": "2.1.0",
+  "feature_schema_version": "3.0.0",
   "model_version": null,
   "degraded_reason": null
 }

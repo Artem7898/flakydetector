@@ -58,13 +58,12 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
         if (
             record.provenance_version != 3
             or not record.reviewed
-            or not record.review_notes
-            or (record.label == 1 and not record.root_causes)
-            or record.label is None
-            or record.source_code is None
+            or (not record.review_notes)
+            or (record.label is None)
+            or (record.source_code is None)
         ):
             raise ValueError(
-                "Every training record requires v3 provenance, a reviewed label and matching source snapshot"
+                "Every training record requires v3 provenance, a reviewed label and matching source snapshot",
             )
         identity = (record.repo, record.nodeid, record.source_hash, record.environment_hash)
         if identity in seen:
@@ -75,20 +74,26 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
         response = AnalyzeService().analyze({**record.context_sources, path: record.source_code})
         if response.status != "ok":
             raise ValueError(
-                f"Incomplete static evidence for {record.nodeid}; supply resolved source context"
+                f"Incomplete static evidence for {record.nodeid}; supply resolved source context",
             )
         test = next(
             (
                 r
                 for r in response.results
-                if r.test_name == name and r.file_path == path and r.result_kind == "test_candidate"
+                if r.test_name == name
+                and r.file_path == path
+                and (r.result_kind == "test_candidate")
             ),
             None,
         )
         if test is None or test.verdict == "inconclusive":
             raise ValueError(f"Test could not be resolved: {record.nodeid}")
         vector = FeatureExtractor().extract_from_patterns(
-            name, path, test.patterns, test.log_anomalies, test.fixtures
+            name,
+            path,
+            test.patterns,
+            test.log_anomalies,
+            test.fixtures,
         )
         tree = ast.parse(record.source_code)
         body = tree.body
@@ -122,13 +127,15 @@ def prepare_samples(records: Sequence[DatasetRecord]) -> list[Sample]:
                 features=vector.features,
                 rule_score=float(
                     any(
-                        p.severity.value in {"high", "critical"} and p.confidence >= 0.5
-                        for p in test.patterns
-                    )
+                        (
+                            p.severity.value in {"high", "critical"} and p.confidence >= 0.5
+                            for p in test.patterns
+                        ),
+                    ),
                 ),
                 root_causes=record.root_causes,
                 observation=record.observation,
-            )
+            ),
         )
     return result
 
@@ -140,13 +147,13 @@ def split_by_repo(
         raise ValueError("Validation and test repository sets must be nonempty and disjoint")
     splits: tuple[list[Sample], list[Sample], list[Sample]] = ([], [], [])
     for sample in samples:
-        index = 2 if sample.repo in test_repos else (1 if sample.repo in validation_repos else 0)
+        index = 2 if sample.repo in test_repos else 1 if sample.repo in validation_repos else 0
         splits[index].append(sample)
     for split in splits:
         if {s.label for s in split} != {0, 1}:
             raise ValueError("Each split must contain both outcome classes")
     clone_sets = [{s.clone_hash for s in split} for split in splits]
-    if any(clone_sets[a] & clone_sets[b] for a, b in ((0, 1), (0, 2), (1, 2))):
+    if any((clone_sets[a] & clone_sets[b] for a, b in ((0, 1), (0, 2), (1, 2)))):
         raise ValueError("AST/template clone leakage across repository splits")
     return splits
 
@@ -161,17 +168,17 @@ def metrics(
     average_precision = cast(
         Callable[[Sequence[int], Sequence[float]], float], module.average_precision_score
     )
-    tp = sum(y == 1 and p >= threshold for y, p in zip(labels, scores, strict=True))
-    fp = sum(y == 0 and p >= threshold for y, p in zip(labels, scores, strict=True))
-    fn = sum(y == 1 and p < threshold for y, p in zip(labels, scores, strict=True))
-    tn = sum(y == 0 and p < threshold for y, p in zip(labels, scores, strict=True))
+    tp = sum((y == 1 and p >= threshold for y, p in zip(labels, scores, strict=True)))
+    fp = sum((y == 0 and p >= threshold for y, p in zip(labels, scores, strict=True)))
+    fn = sum((y == 1 and p < threshold for y, p in zip(labels, scores, strict=True)))
+    tn = sum((y == 0 and p < threshold for y, p in zip(labels, scores, strict=True)))
     return {
         "roc_auc": float(roc_auc(labels, scores)),
         "average_precision": float(average_precision(labels, scores)),
         "precision": tp / max(1, tp + fp),
         "recall": tp / max(1, tp + fn),
         "false_positive_rate": fp / max(1, fp + tn),
-        "brier_score_uncalibrated": sum((p - y) ** 2 for y, p in zip(labels, scores, strict=True))
+        "brier_score_uncalibrated": sum(((p - y) ** 2 for y, p in zip(labels, scores, strict=True)))
         / len(labels),
         "threshold": threshold,
         "n": float(len(labels)),
@@ -180,6 +187,7 @@ def metrics(
 
 class TabularBaseline(Protocol):
     def fit(self, X: list[tuple[float, ...]], y: list[int]) -> object: ...
+
     def predict_proba(self, X: list[tuple[float, ...]]) -> Sequence[Sequence[float]]: ...
 
 
@@ -198,9 +206,11 @@ def recall_by_cause(
     causes = sorted({cause for s in samples if s.label for cause in s.root_causes})
     return {
         cause: sum(
-            p >= threshold
-            for s, p in zip(samples, scores, strict=True)
-            if s.label and cause in s.root_causes
+            (
+                p >= threshold
+                for s, p in zip(samples, scores, strict=True)
+                if s.label and cause in s.root_causes
+            ),
         )
         / sum(s.label == 1 and cause in s.root_causes for s in samples)
         for cause in causes
@@ -220,9 +230,9 @@ def reliability_bins(labels: Sequence[int], scores: Sequence[float]) -> list[dic
                     "lower": index / 10,
                     "upper": (index + 1) / 10,
                     "n": float(len(pairs)),
-                    "mean_score": sum(p for _, p in pairs) / len(pairs),
-                    "observed_fraction": sum(y for y, _ in pairs) / len(pairs),
-                }
+                    "mean_score": sum((p for _, p in pairs)) / len(pairs),
+                    "observed_fraction": sum((y for y, _ in pairs)) / len(pairs),
+                },
             )
     return bins
 

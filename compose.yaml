@@ -4,12 +4,20 @@ services:
     ports:
       - "127.0.0.1:8001:8000"
     environment:
-      FLAKY_API_TOKEN: ${FLAKY_API_TOKEN:-}
+      FLAKY_API_TOKEN: ${FLAKY_API_TOKEN:?Set a random token of at least 32 characters before starting}
+      FLAKY_PROFILE: shared
+      FLAKY_ALLOW_REMOTE: "1"
+      FLAKY_SOURCE_MODE: disabled
+      FLAKY_EVIDENCE_DB: /app/data/evidence.db
     volumes:
       - detector-data:/app/data
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2g
+    pids_limit: 64
     restart: unless-stopped
 volumes:
   detector-data:

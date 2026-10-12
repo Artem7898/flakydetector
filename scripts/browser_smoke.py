@@ -1,7 +1,7 @@
 """Exercise a running local workspace in a real browser; no mocked API or screenshots.
 
 Install Playwright and its Chromium browser in a separate tooling environment.
-The application must already be running, with no API token and optional ML disabled.
+The application must already be running, with optional ML disabled. A token may be supplied through FLAKY_SMOKE_TOKEN.
 This is a functional smoke test, not an accessibility/performance certification.
 """
 
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,6 +18,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8001")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--source-view",
+        action="store_true",
+        help="Require a configured redacted source view and source:read credential",
+    )
+    parser.add_argument(
+        "--runtime-repo",
+        help="Repository already present in the configured event store",
+    )
     args = parser.parse_args()
     if urlparse(args.url).hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise SystemExit("Use a local test instance; this smoke submits sample source code.")
@@ -37,6 +47,12 @@ def main() -> None:
                 page.on("pageerror", lambda error: browser_errors.append(str(error)))
                 report["status"] = "failed"
                 page.goto(args.url, wait_until="networkidle")
+                if os.environ.get("FLAKY_SMOKE_TOKEN"):
+                    page.get_by_label("API access token").fill(os.environ["FLAKY_SMOKE_TOKEN"])
+                if args.source_view:
+                    page.get_by_role(
+                        "checkbox", name="Request a temporary redacted source view"
+                    ).check()
                 source = page.get_by_role("textbox", name="Python test source")
                 source.fill("import time\ndef test_wait():\n    time.sleep(1)\n")
                 page.get_by_role("button", name="Run analysis", exact=True).click()
@@ -44,8 +60,17 @@ def main() -> None:
                 expect(page.get_by_text("Risk detected", exact=True)).to_be_visible()
                 checks.append("real-api-analysis")
                 page.get_by_text("Open captured source", exact=False).first.click()
-                expect(page.locator(".source-line.highlighted").first).to_be_visible()
-                checks.append("captured-source-navigation")
+                if args.source_view:
+                    expect(page.locator(".source-line.highlighted").first).to_be_visible()
+                    checks.append("authorized-redacted-source-navigation")
+                else:
+                    expect(
+                        page.get_by_text(
+                            "Source access is disabled, denied or expired.", exact=False
+                        ).first,
+                    ).to_be_visible()
+                    expect(page.locator(".source-line.highlighted")).to_have_count(0)
+                    checks.append("source-hidden-by-default")
                 source.fill("def test_fixed():\n    assert True\n")
                 expect(page.get_by_test_id("stale-analysis")).to_be_visible()
                 page.get_by_role("button", name="Run analysis", exact=True).click()
@@ -62,7 +87,7 @@ def main() -> None:
                         "name": "test_upload.py",
                         "mimeType": "text/x-python",
                         "buffer": b"def test_uploaded():\n    assert True\n",
-                    }
+                    },
                 )
                 page.get_by_role("button", name="Run analysis", exact=True).click()
                 expect(
@@ -78,6 +103,13 @@ def main() -> None:
                     page.get_by_role("heading", name="Analysis coverage and limitations")
                 ).to_be_visible()
                 checks.append("syntax-422-is-rendered")
+                if args.runtime_repo:
+                    page.get_by_label("Runtime repository").fill(args.runtime_repo)
+                    page.get_by_role("button", name="Load history", exact=True).click()
+                    expect(
+                        page.get_by_role("heading", name="Reliability measurements")
+                    ).to_be_visible()
+                    checks.append("runtime-ledger-and-metrics")
                 if browser_errors:
                     raise AssertionError("Uncaught browser errors")
                 page.screenshot(path=str(args.output / "desktop.png"), full_page=True)
