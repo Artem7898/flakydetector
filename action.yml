@@ -1,0 +1,75 @@
+name: FlakyDetector
+description: Source-free static reliability findings, SARIF 2.1.0 and trusted-base debt policy
+author: Artem Alimpiev
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  path:
+    description: Repository-relative source scope (scan the repository root to resolve ancestor fixtures)
+    default: '.'
+  baseline-ref:
+    description: Immutable trusted base commit SHA; empty means report all findings
+    default: ''
+  fail-on:
+    description: none, low, medium, high or critical
+    default: high
+  upload-sarif:
+    description: Explicitly upload to GitHub Code Scanning (requires repository capability and security-events permission)
+    default: 'false'
+outputs:
+  exit-code:
+    description: 0 policy pass, 1 new/high-risk finding, 2 operational or incomplete analysis
+    value: ${{ steps.scan.outputs.exit_code }}
+  sarif:
+    description: Full source-free SARIF result path
+    value: ${{ steps.scan.outputs.sarif }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: '0.12.18'
+        enable-cache: false
+    - name: Install trusted analyzer, never the target repository
+      shell: bash
+      env:
+        ACTION_ROOT: ${{ github.action_path }}
+      run: uv sync --locked --no-dev --project "$ACTION_ROOT" --python 3.12
+    - id: scan
+      name: Analyze and retain policy exit status
+      shell: bash
+      env:
+        ACTION_ROOT: ${{ github.action_path }}
+        INPUT_SCOPE: ${{ inputs.path }}
+        INPUT_BASE: ${{ inputs.baseline-ref }}
+        INPUT_THRESHOLD: ${{ inputs.fail-on }}
+      run: >-
+        "$ACTION_ROOT/.venv/bin/python" -I "$ACTION_ROOT/scripts/action_runner.py"
+        --scope "$INPUT_SCOPE" --base "$INPUT_BASE" --threshold "$INPUT_THRESHOLD"
+    - name: Preserve source-free report
+      uses: actions/upload-artifact@v4
+      if: ${{ always() && steps.scan.outputs.sarif != '' }}
+      with:
+        name: flakydetector-static-report
+        path: ${{ steps.scan.outputs.sarif }}
+        retention-days: 7
+    - name: Upload complete analysis to Code Scanning
+      uses: github/codeql-action/upload-sarif@v4
+      if: ${{ inputs.upload-sarif == 'true' && steps.scan.outputs.sarif != '' }}
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+        category: flakydetector-static
+    - name: Enforce analysis policy (never hide operational errors)
+      shell: bash
+      env:
+        SCAN_EXIT: ${{ steps.scan.outputs.exit_code }}
+      run: |
+        case "$SCAN_EXIT" in
+          0) exit 0 ;;
+          1) echo "New or worsened static risks violate policy"; exit 1 ;;
+          *) echo "Analysis was incomplete or failed"; exit 2 ;;
+        esac

@@ -1,19 +1,27 @@
 {
-  "schema_version": "2.1.0",
-  "analysis_id": "c83f8914-bda2-415e-91e2-522f0ae9712e",
-  "request_fingerprint": "5b588e81077f5bc355b51a280f39834870c9d760c9ef23415c4ac5493130a98e",
-  "source_snapshots": [
-    {
-      "file_path": "test_bad.py",
-      "sha256": "acc6cea497935ae04d5505e95f1d264c9d12161ca862e79ed0e6e9ac88d5575a",
-      "content": "def broken(:"
-    },
-    {
-      "file_path": "test_ok.py",
-      "sha256": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a",
-      "content": "def test_ok(): pass\n"
-    }
+  "schema_version": "3.0.0",
+  "findings": [],
+  "source_digests": {
+    "test_bad.py": "acc6cea497935ae04d5505e95f1d264c9d12161ca862e79ed0e6e9ac88d5575a",
+    "test_ok.py": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a"
+  },
+  "source_grant": null,
+  "source_access": "disabled",
+  "source_expires_at": null,
+  "granted_scopes": [
+    "analyze",
+    "events:read",
+    "events:write",
+    "export",
+    "findings:read",
+    "lifecycle:write",
+    "quarantine:write",
+    "source:read"
   ],
+  "workspace": "local",
+  "analysis_id": "b1b0163f-6ecf-4b38-84fe-d99d8a00fe64",
+  "request_fingerprint": "5b588e81077f5bc355b51a280f39834870c9d760c9ef23415c4ac5493130a98e",
+  "source_snapshots": [],
   "status": "partial",
   "total_files_analyzed": 1,
   "total_patterns_found": 0,
@@ -77,7 +85,7 @@
       "level": "error"
     }
   ],
-  "feature_schema_version": "2.1.0",
+  "feature_schema_version": "3.0.0",
   "model_version": null,
   "degraded_reason": null
 }

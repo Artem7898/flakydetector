@@ -14,6 +14,8 @@ from pathlib import Path
 from check_release import MANIFEST, read_release, validate_entries
 
 TOP = {
+    "SECURITY.md",
+    "action.yml",
     "README.md",
     "README.RUS.md",
     "LICENSE",
@@ -48,7 +50,7 @@ def main() -> None:
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", version):
+    if not re.fullmatch("[A-Za-z0-9_.-]+", version):
         raise SystemExit("Unsafe release version")
     entries: list[tuple[str, bytes]] = []
     # Walk only allowed trees; do not recursively enumerate a local environment or .git.
@@ -56,7 +58,7 @@ def main() -> None:
     for name in (*sorted(TREES), "dashboard_frontend"):
         for current, dirs, files in os.walk(root / name):
             dirs[:] = sorted(
-                d for d in dirs if d not in EXCLUDE and not Path(current, d).is_symlink()
+                d for d in dirs if d not in EXCLUDE and (not Path(current, d).is_symlink())
             )
             candidates.extend(Path(current, file) for file in sorted(files))
     for path in sorted(candidates):
@@ -87,7 +89,7 @@ def main() -> None:
                     f"flakydetector-{version}/" + name, date_time=(2025, 1, 1, 0, 0, 0)
                 )
                 info.compress_type = zipfile.ZIP_DEFLATED
-                info.external_attr = 0o100644 << 16
+                info.external_attr = 33188 << 16
                 archive.writestr(info, data)
         read_release(temporary)
         temporary.replace(args.output)

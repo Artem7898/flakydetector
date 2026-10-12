@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from flakydetector.analyzer.ast_analyzer import EXCLUDE
 from flakydetector.models.domain import AnalysisDiagnostic
+from flakydetector.security.privacy import safe_path
 from flakydetector.utils.config import Settings
 
 
@@ -34,7 +35,7 @@ def selected(path: PurePosixPath) -> bool:
             or path.name.startswith("test_")
             or path.name.endswith("_test.py")
         )
-        and not any(part in EXCLUDE for part in path.parts)
+        and (not any(part in EXCLUDE for part in path.parts))
     )
 
 
@@ -54,9 +55,15 @@ def directory_bundle(root: Path, settings: Settings) -> SourceBundle:
     diagnostics: list[AnalysisDiagnostic] = []
     total = 0
     paths: list[Path] = []
+    entries = 0
     for directory, dirs, files in os.walk(root):
+        entries += len(dirs) + len(files)
+        if entries > settings.max_entries * 10:
+            raise InputError("Directory discovery budget exceeded", too_large=True)
+        if len(Path(directory).relative_to(root).parts) > settings.max_path_depth:
+            raise InputError("Directory depth limit exceeded", too_large=True)
         dirs[:] = sorted(
-            d for d in dirs if d not in EXCLUDE and not (Path(directory) / d).is_symlink()
+            d for d in dirs if d not in EXCLUDE and (not (Path(directory) / d).is_symlink())
         )
         paths.extend(Path(directory) / f for f in sorted(files) if selected(PurePosixPath(f)))
         if len(paths) > settings.max_files:
@@ -68,8 +75,10 @@ def directory_bundle(root: Path, settings: Settings) -> SourceBundle:
         if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
             diagnostics.append(
                 AnalysisDiagnostic(
-                    code="symlink_skipped", message="Symlink source not analyzed", file_path=name
-                )
+                    code="symlink_skipped",
+                    message="Symlink source not analyzed",
+                    file_path=name,
+                ),
             )
             continue
         if len(sources) >= settings.max_files:
@@ -95,7 +104,19 @@ def zip_bundle(data: bytes, settings: Settings) -> SourceBundle:
     diagnostics: list[AnalysisDiagnostic] = []
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            members = [i for i in archive.infolist() if not i.is_dir()]
+            all_members = archive.infolist()
+            if len(all_members) > settings.max_entries:
+                raise InputError("Archive entry count limit exceeded", too_large=True)
+            for member in all_members:
+                try:
+                    safe_path(
+                        member.filename.rstrip("/"),
+                        max_depth=settings.max_path_depth,
+                        max_length=settings.max_path_length,
+                    )
+                except ValueError as exc:
+                    raise InputError("Unsafe archive path or depth") from exc
+            members = [i for i in all_members if not i.is_dir()]
             if (
                 len(members) > settings.max_files
                 or sum(i.file_size for i in members) > settings.max_unpacked_bytes
@@ -108,14 +129,25 @@ def zip_bundle(data: bytes, settings: Settings) -> SourceBundle:
                     not path.parts
                     or path.is_absolute()
                     or ".." in path.parts
-                    or ":" in path.parts[0]
+                    or (":" in path.parts[0])
                     or stat.S_ISLNK(info.external_attr >> 16)
                 ):
                     raise InputError("Unsafe archive member path/type")
-                name = str(path)
+                try:
+                    name = safe_path(
+                        str(path),
+                        max_depth=settings.max_path_depth,
+                        max_length=settings.max_path_length,
+                    )
+                except ValueError as exc:
+                    raise InputError("Unsafe archive member path") from exc
                 if name in names:
                     raise InputError("Duplicate archive member")
                 names.add(name)
+                if any(
+                    existing.casefold() == name.casefold() for existing in names if existing != name
+                ):
+                    raise InputError("Case-ambiguous archive member")
                 if info.flag_bits & 1 or info.compress_type not in {
                     zipfile.ZIP_STORED,
                     zipfile.ZIP_DEFLATED,
@@ -133,7 +165,7 @@ def zip_bundle(data: bytes, settings: Settings) -> SourceBundle:
                     sources[name] = decode(raw, name, settings.max_file_bytes)
                 except InputError as exc:
                     diagnostics.append(
-                        AnalysisDiagnostic(code="encoding_error", message=str(exc), file_path=name)
+                        AnalysisDiagnostic(code="encoding_error", message=str(exc), file_path=name),
                     )
     except (zipfile.BadZipFile, EOFError, RuntimeError, NotImplementedError) as exc:
         raise InputError("Invalid or unsupported ZIP archive") from exc

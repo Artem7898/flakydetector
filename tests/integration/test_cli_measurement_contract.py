@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import zipfile
 
@@ -24,10 +25,13 @@ def test_same_source_has_same_identity_and_units_across_cli_inputs(tmp_path, cap
             archive.writestr("test_sample.py", source)
     assert main([str(path), "--format", "json", "--fail-on", "none"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == "2.1.0"
+    assert payload["schema_version"] == "3.0.0"
     assert payload["files_selected"] == payload["files_parsed"] == payload["test_candidates"] == 1
     assert payload["files_rejected"] == 0
-    assert payload["source_snapshots"][0]["content"] == source
+    assert payload["source_snapshots"] == []
+    assert (
+        payload["source_digests"]["test_sample.py"] == hashlib.sha256(source.encode()).hexdigest()
+    )
     assert payload["results"][0]["verdict"] == "risk_detected"
 
 
@@ -44,9 +48,9 @@ def test_cli_risk_policy_and_text_explanation(tmp_path, capsys):
     target = tmp_path / "test_wait.py"
     target.write_text("import time\ndef test_wait():\n    time.sleep(1)\n")
     assert main([str(target), "--fail-on", "medium"]) == 1
-    assert "time_sleep" in capsys.readouterr().out
+    assert "FD-TIME-001" in capsys.readouterr().out
 
 
 def test_cli_missing_input_is_error_not_success(tmp_path, capsys):
     assert main([str(tmp_path / "absent.py"), "--fail-on", "none"]) == 2
-    assert "Input error" in capsys.readouterr().err
+    assert "input rejected" in capsys.readouterr().err

@@ -1,3 +1,5 @@
+> **Historical 0.2.0/0.2.1 context:** the 0.2.2 candidate changes this scope. See [capability matrix](CAPABILITY_MATRIX.md), [migration](MIGRATION_0.2.2.md) and [current security boundary](https://github.com/Artem7898/flakydetector/blob/main/SECURITY.md). This page is retained as historical context, not current verification.
+
 # Кандидат 0.2.1rc1: реализация и границы проверки
 
 Основание: предоставленный исходный ZIP 0.2.0 и воспроизведения его аудита. Номера F01–F12 относятся к этому аудиту. Это не объявление production-ready и не публикация версии в PyPI/GitHub.

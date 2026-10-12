@@ -1,14 +1,26 @@
 {
-  "schema_version": "2.1.0",
-  "analysis_id": "dcd81ac5-3d8d-4ba8-85b4-e521e122c774",
-  "request_fingerprint": "1c2d805147f38ec37ab35c77f684e707aaf634c9c7e329657c991f3393eb493e",
-  "source_snapshots": [
-    {
-      "file_path": "test_case.py",
-      "sha256": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a",
-      "content": "def test_ok(): pass\n"
-    }
+  "schema_version": "3.0.0",
+  "findings": [],
+  "source_digests": {
+    "test_case.py": "2d0a88d1812c4148f7a56885f2d3e8dba9297af9164eb14fd40ff0d0f20f905a"
+  },
+  "source_grant": null,
+  "source_access": "disabled",
+  "source_expires_at": null,
+  "granted_scopes": [
+    "analyze",
+    "events:read",
+    "events:write",
+    "export",
+    "findings:read",
+    "lifecycle:write",
+    "quarantine:write",
+    "source:read"
   ],
+  "workspace": "local",
+  "analysis_id": "9f7b8b6d-adec-478b-aea6-7e9abc7fe24e",
+  "request_fingerprint": "1c2d805147f38ec37ab35c77f684e707aaf634c9c7e329657c991f3393eb493e",
+  "source_snapshots": [],
   "status": "partial",
   "total_files_analyzed": 1,
   "total_patterns_found": 0,
@@ -41,7 +53,7 @@
     }
   ],
   "diagnostics": [],
-  "feature_schema_version": "2.1.0",
+  "feature_schema_version": "3.0.0",
   "model_version": null,
-  "degraded_reason": "No compatible model configured"
+  "degraded_reason": "Optional model unavailable"
 }

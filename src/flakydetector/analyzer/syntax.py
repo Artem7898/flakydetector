@@ -65,9 +65,11 @@ def parameter_names(node: Function, aliases: dict[str, str]) -> set[str]:
                 names.update(x.strip() for x in arg.value.split(","))
             elif isinstance(arg, (ast.Tuple, ast.List)):
                 names.update(
-                    x.value
-                    for x in arg.elts
-                    if isinstance(x, ast.Constant) and isinstance(x.value, str)
+                    (
+                        x.value
+                        for x in arg.elts
+                        if isinstance(x, ast.Constant) and isinstance(x.value, str)
+                    ),
                 )
     return names
 
@@ -88,7 +90,7 @@ def requested_fixtures(node: Function, aliases: dict[str, str]) -> tuple[str, ..
                 target
                 in {"patch", "unittest.mock.patch", "patch.object", "unittest.mock.patch.object"}
                 and len(dec.args) == arity
-                and not any(k.arg == "new" for k in dec.keywords)
+                and (not any(k.arg == "new" for k in dec.keywords))
             ):
                 injected += 1
     names = names[injected:]
@@ -96,3 +98,10 @@ def requested_fixtures(node: Function, aliases: dict[str, str]) -> tuple[str, ..
         if isinstance(dec, ast.Call) and resolve(dec.func, aliases).endswith("mark.usefixtures"):
             names.extend(string_args(dec))
     return tuple(dict.fromkeys(names))
+
+
+def character_column(lines: list[str], line: int | None, byte_offset: int | None) -> int | None:
+    """Translate Python AST UTF-8 offsets to 1-based Unicode code point columns."""
+    if line is None or byte_offset is None or (not 1 <= line <= len(lines)):
+        return None
+    return len(lines[line - 1].encode("utf-8")[:byte_offset].decode("utf-8")) + 1

@@ -7,14 +7,14 @@ def test_deadline():
     assert time.time() - start < 0.15
 `;
 export const initialState = {
-  code: DEFAULT_CODE, file: null, mode: 'code', useMl: false, token: '', revision: 0,
+  workspace: 'local', includeSource: false, code: DEFAULT_CODE, file: null, mode: 'code', useMl: false, token: '', revision: 0,
   pending: null, result: null, error: null,
   query: '', queryRevision: 0, searchPending: null, hits: null, searchError: null,
 };
 
 export function captureSnapshot(state) {
   // Credentials never enter a result snapshot or exported report.
-  return Object.freeze({revision: state.revision, mode: state.mode, useMl: state.useMl,
+  return Object.freeze({workspace: state.workspace, includeSource: state.includeSource, revision: state.revision, mode: state.mode, useMl: state.useMl,
     fileName: state.mode === 'file' ? state.file?.name ?? null : 'test_sample.py',
     code: state.mode === 'code' ? state.code : null});
 }
@@ -24,11 +24,15 @@ export const searchIsStale = state => !!state.hits && state.hits.revision !== st
 export function reducer(state, action) {
   switch (action.type) {
     case 'edit': {
-      const allowed = ['code', 'file', 'mode', 'useMl', 'token'];
+      const allowed = ['code', 'file', 'mode', 'useMl', 'token', 'workspace', 'includeSource'];
       if (!allowed.includes(action.field) || state[action.field] === action.value) return state;
+      if (['token', 'workspace'].includes(action.field)) return {...state, [action.field]: action.value,
+        revision: state.revision + 1, queryRevision: state.queryRevision + 1, pending: null, result: null,
+        hits: null, searchPending: null, error: null, searchError: null};
       return {...state, [action.field]: action.value, revision: state.revision + 1, error: null,
         queryRevision: state.queryRevision + (action.field === 'token' ? 1 : 0)};
     }
+    case 'fileRejected': return {...state, mode: 'file', file: null, pending: null, revision: state.revision + 1, error: action.error};
     case 'clearFile': return {...state, file: null, mode: 'code', revision: state.revision + 1, error: null};
     case 'analysisStart': return {...state, pending: {id: action.id, snapshot: action.snapshot}, error: null};
     case 'analysisSuccess':
@@ -36,6 +40,9 @@ export function reducer(state, action) {
         result: {payload: action.payload, snapshot: state.pending.snapshot}, error: null};
     case 'analysisFailure':
       return state.pending?.id !== action.id ? state : {...state, pending: null, error: action.error};
+    case 'expireSources':
+      if (!state.result) return state;
+      return {...state, result: {...state.result, snapshot: {...state.result.snapshot, code: null}, payload: action.payload}};
     case 'analysisCancel': return {...state, pending: null};
     case 'query': return {...state, query: action.value, queryRevision: state.queryRevision + 1, searchError: null};
     case 'searchStart': return {...state, searchPending: {id: action.id, query: state.query, revision: state.queryRevision}, searchError: null};

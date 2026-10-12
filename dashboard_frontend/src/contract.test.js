@@ -15,7 +15,7 @@ for (const name of readdirSync(new URL('./fixtures/', import.meta.url))) {
   test(`accepts actual backend response: ${name}`, () => {
     const value = load(`./fixtures/${name}`);
     assert.equal(validateAnalysis(value), value);
-    assert.ok(value.source_snapshots.length);
+    assert.equal(Boolean(value.source_snapshots.length), value.source_access === 'redacted');
   });
 }
 test('accepts actual normal and nullable fields', () => {
@@ -27,7 +27,7 @@ test('accepts actual normal and nullable fields', () => {
 });
 test('every field consumed by the renderer is required or safely nullable', () => {
   const objects = [[], ['results', 0], ['results', 0, 'patterns', 0],
-    ['results', 0, 'patterns', 0, 'location'], ['source_snapshots', 0]];
+    ['results', 0, 'patterns', 0, 'location']];
   const ignored = new Set(['location_string']); // Computed display convenience; not consumed.
   for (const path of objects) {
     const baseline = path.reduce((value, key) => value[key], example());
@@ -52,7 +52,7 @@ test('rejects arrays/objects that would crash map, join, toFixed or location acc
     p => { p.results[0].patterns[0].location = null; },
     p => { p.results[0].log_anomalies = {}; },
     p => { p.results[0].recommendations = [42]; },
-    p => { p.source_snapshots[0].content = {}; },
+    p => { p.source_snapshots = [{file_path:'test_a.py',sha256:'a'.repeat(64),content:{}}]; },
     p => { p.results[0].patterns[0].location.line_start = 0; },
     p => { p.results[0].patterns[0].location.line_end = 0; },
   ];

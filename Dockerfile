@@ -22,4 +22,4 @@ RUN useradd --create-home appuser && mkdir /app/data && chown appuser:appuser /a
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"
-CMD ["uvicorn", "flakydetector.dashboard.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/python", "-m", "flakydetector.serve", "--host", "0.0.0.0", "--port", "8000", "--allow-remote"]

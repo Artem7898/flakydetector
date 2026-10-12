@@ -1,3 +1,5 @@
+> **0.2.2:** static regression corpus tooling is added; no independent benchmark was conducted. Observed intermittent behavior is separate from causal labels: an unknown root cause is valid. Old protocol requirements for positive causal labels are superseded. See [capability matrix](CAPABILITY_MATRIX.md).
+
 > **0.2.1rc1:** execution records must carry provenance version 3. Clone guards now hash the selected target test AST. Old 0.2.0 hashes/labels/model manifests are not silently upgraded. No independent reviewed benchmark was run for this candidate; the protocol below describes required work, not measured accuracy.
 
 # Reproducible evaluation protocol

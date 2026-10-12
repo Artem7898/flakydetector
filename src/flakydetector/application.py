@@ -36,7 +36,7 @@ def _belongs_to_test(nodeid: object, *, file_path: str, test: TestDefinition) ->
     return (
         normalized == str(PurePosixPath(file_path.replace("\\", "/")))
         and qualified_name.split("[", 1)[0] == test.qualified_name
-        and test.name != "<module>"
+        and (test.name != "<module>")
     )
 
 
@@ -67,6 +67,14 @@ class AnalyzeService:
         use_ml: bool = False,
         diagnostics: Sequence[AnalysisDiagnostic] = (),
     ) -> AnalysisResponse:
+        from flakydetector.security.privacy import safe_path
+
+        for path in sources:
+            safe_path(
+                path,
+                max_depth=self.settings.max_path_depth,
+                max_length=self.settings.max_path_length,
+            )
         parsed = {
             name: self.analyzer.analyze_source(code, name) for name, code in sorted(sources.items())
         }
@@ -98,7 +106,7 @@ class AnalyzeService:
                     or (
                         p.location.function_name is not None
                         and p.location.function_name.split(".")[0] == test.name
-                        and p.location.class_name == test.class_name
+                        and (p.location.class_name == test.class_name)
                     )
                 ]
                 for definition_source in parsed.values():
@@ -124,7 +132,7 @@ class AnalyzeService:
                                 code_snippet="\n".join(
                                     sources.get(f.file_path, "").splitlines()[
                                         max(0, f.line - 2) : f.line + 5
-                                    ]
+                                    ],
                                 ),
                                 location=CodeLocation(
                                     file_path=f.file_path,
@@ -133,7 +141,7 @@ class AnalyzeService:
                                     class_name=f.class_name,
                                 ),
                                 fix_suggestion="Use function scope or explicitly isolate/restore mutations",
-                            )
+                            ),
                         )
                 # Only a full, matching nodeid belongs to this static definition.
                 # Do not guess from basenames, bare function names, proximity or file count.
@@ -152,22 +160,24 @@ class AnalyzeService:
                 ]
                 weighted.extend(log.confidence * 0.75 for log in related_logs)
                 score = max(weighted, default=0.0) if source.ok else None
-                backend, model_score = "rules", None
+                backend, model_score = ("rules", None)
                 ml_risk = False
                 if use_ml and self.classifier is not None and source.ok:
                     features = FeatureExtractor().extract_from_patterns(
-                        test.qualified_name, name, selected, related_logs, selection.fixtures
+                        test.qualified_name,
+                        name,
+                        selected,
+                        related_logs,
+                        selection.fixtures,
                     )
                     ml_risk, model_score = self.classifier.predict_single(features.features)
                     backend = "ml"
                 verdict = (
                     "inconclusive"
                     if ds
-                    else (
-                        "risk_detected"
-                        if any(p.confidence >= 0.5 for p in selected) or related_logs or ml_risk
-                        else "no_known_risk"
-                    )
+                    else "risk_detected"
+                    if any(p.confidence >= 0.5 for p in selected) or related_logs or ml_risk
+                    else "no_known_risk"
                 )
                 results.append(
                     TestAnalysisResult(
@@ -185,7 +195,7 @@ class AnalyzeService:
                         recommendations=tuple(
                             dict.fromkeys(p.fix_suggestion for p in selected if p.fix_suggestion)
                         ),
-                    )
+                    ),
                 )
             unassigned = tuple(p for p in source.patterns if p.model_dump_json() not in assigned)
             if unassigned and source.tests:
@@ -204,7 +214,7 @@ class AnalyzeService:
                                 level="warning",
                             ),
                         ),
-                    )
+                    ),
                 )
         unassigned_logs = tuple(log for log in logs if id(log) not in assigned_logs)
         if unassigned_logs:
@@ -221,7 +231,7 @@ class AnalyzeService:
                     verdict="inconclusive",
                     log_anomalies=unassigned_logs,
                     diagnostics=(diagnostic,),
-                )
+                ),
             )
         for result in results:
             all_diagnostics.extend(d for d in result.diagnostics if d not in all_diagnostics)
@@ -231,7 +241,7 @@ class AnalyzeService:
                 AnalysisDiagnostic(
                     code="no_tests",
                     message="No statically discoverable test functions; analysis coverage is empty",
-                )
+                ),
             )
             results = [
                 r.model_copy(update={"verdict": "inconclusive", "risk_score": None})
@@ -239,29 +249,34 @@ class AnalyzeService:
             ]
         if not targets:
             all_diagnostics.append(
-                AnalysisDiagnostic(code="empty_scan", message="No test files were selected")
+                AnalysisDiagnostic(code="empty_scan", message="No test files were selected"),
             )
         errors = any(d.level == "error" for d in all_diagnostics)
         valid_files = sum(source.ok for source in targets.values())
         degraded = (
-            (self.degraded_reason or "No compatible model configured")
+            self.degraded_reason or "No compatible model configured"
             if use_ml and self.classifier is None
             else None
         )
         status = (
             "error"
-            if no_tests or not targets or (errors and not valid_files)
-            else ("partial" if all_diagnostics or degraded else "ok")
+            if no_tests or not targets or (errors and (not valid_files))
+            else "partial"
+            if all_diagnostics or degraded
+            else "ok"
         )
         evidence_links = sum(len(r.patterns) + len(r.log_anomalies) for r in results)
         unique_risks = {
-            (p.location.file_path, p.location.line_start, p.pattern_type)
+            (p.location.file_path, p.location.line_start, p.location.column_start, p.pattern_type)
             for r in results
             for p in r.patterns
             if p.confidence >= 0.5
         }
-        return AnalysisResponse(
+        response = AnalysisResponse(
             status=status,
+            source_digests={
+                path: hashlib.sha256(code.encode()).hexdigest() for path, code in sources.items()
+            },
             request_fingerprint=hashlib.sha256(
                 json.dumps(
                     {
@@ -271,13 +286,17 @@ class AnalyzeService:
                     },
                     sort_keys=True,
                     separators=(",", ":"),
-                ).encode()
+                ).encode(),
             ).hexdigest(),
             source_snapshots=tuple(
-                SourceSnapshot(
-                    file_path=name, content=code, sha256=hashlib.sha256(code.encode()).hexdigest()
-                )
-                for name, code in sorted(sources.items())
+                (
+                    SourceSnapshot(
+                        file_path=name,
+                        content=code,
+                        sha256=hashlib.sha256(code.encode()).hexdigest(),
+                    )
+                    for name, code in sorted(sources.items())
+                ),
             ),
             total_files_analyzed=valid_files,
             total_patterns_found=evidence_links,
@@ -288,9 +307,11 @@ class AnalyzeService:
             test_candidates=sum(len(source.tests) for source in targets.values()),
             unique_risk_locations=len(unique_risks),
             tests_with_risk=sum(
-                r.result_kind == "test_candidate"
-                and (any(p.confidence >= 0.5 for p in r.patterns) or bool(r.log_anomalies))
-                for r in results
+                (
+                    r.result_kind == "test_candidate"
+                    and (any((p.confidence >= 0.5 for p in r.patterns)) or bool(r.log_anomalies))
+                    for r in results
+                ),
             ),
             evidence_links=evidence_links,
             diagnostic_groups=sum(r.result_kind != "test_candidate" for r in results),
@@ -299,3 +320,6 @@ class AnalyzeService:
             model_version=self.model_version if use_ml else None,
             degraded_reason=degraded,
         )
+        from flakydetector.reporting.findings import build_findings
+
+        return response.model_copy(update={"findings": build_findings(response, sources)})

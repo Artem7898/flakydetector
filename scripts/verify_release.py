@@ -95,6 +95,11 @@ def main() -> None:
                 ],
                 root,
             ),
+            (
+                "sarif-schema",
+                ["uv", "run", "--frozen", "python", "scripts/validate_sarif.py"],
+                root,
+            ),
             ("build", ["uv", "build"], root),
             (
                 "installed-wheel",
@@ -117,7 +122,7 @@ def main() -> None:
                         str(output / "container.json"),
                     ],
                     root,
-                )
+                ),
             )
         else:
             checks.append({"name": "container", "status": "not_run", "reason": "--without-docker"})
@@ -125,7 +130,7 @@ def main() -> None:
             print(f"\n=== {name}: {' '.join(command)} ===", flush=True)
             if shutil.which(command[0]) is None:
                 checks.append(
-                    {"name": name, "status": "blocked", "reason": f"{command[0]} unavailable"}
+                    {"name": name, "status": "blocked", "reason": f"{command[0]} unavailable"},
                 )
                 print(f"BLOCKED: {command[0]} unavailable", flush=True)
                 failed = True
@@ -142,7 +147,7 @@ def main() -> None:
                         "name": name,
                         "status": "passed" if process.returncode == 0 else "failed",
                         "returncode": process.returncode,
-                    }
+                    },
                 )
                 failed |= process.returncode != 0
             except subprocess.TimeoutExpired:
@@ -159,10 +164,10 @@ def main() -> None:
                 "name": "source-integrity",
                 "status": "failed" if changed else "passed",
                 "changed": changed,
-            }
+            },
         )
         failed |= bool(changed)
-    report["status"] = "failed" if failed else ("partial" if args.without_docker else "passed")
+    report["status"] = "failed" if failed else "partial" if args.without_docker else "passed"
     (output / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
     raise SystemExit(1 if failed else 0)

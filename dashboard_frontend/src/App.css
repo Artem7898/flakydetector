@@ -105,3 +105,23 @@ footer { border-top: 1px solid #d7e2e5; text-align: center; color: #536a78; font
 @media (max-width: 1150px) { .metrics-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .workspace { gap: 1.2rem; grid-template-columns: 320px minmax(0,1fr); } .filter-bar { align-items: stretch; flex-direction: column; gap: .5rem; } }
 @media (max-width: 850px) { .workspace { grid-template-columns: 1fr; padding-top: 1rem; } .input-panel { position: static; } .header-note { display: none; } .editor-label textarea { min-height: 220px; } }
 @media (max-width: 480px) { .app-header { padding: 1rem; } .card,.input-panel { padding: 1rem; } .finding-heading,.test-heading { flex-direction: column; align-items: start; } .severity-bars { grid-template-columns: 1fr; } .search-row { align-items: stretch; flex-direction: column; } .brand small { margin-left: .5rem; } }
+/* Runtime evidence deliberately has its own surface, not a shared risk-score gauge. */
+.observed-panel { margin-top: 1.5rem; }
+.monitor-list { display: grid; gap: .6rem; margin: 1rem 0; }
+.monitor-row { display: flex; flex-direction: column; text-align: left; gap: .25rem; padding: .8rem; border: 1px solid var(--border, #344154); border-radius: 10px; background: transparent; color: inherit; overflow-wrap: anywhere; }
+.monitor-row.detected { border-left: 4px solid #dfa857; }
+.monitor-row.insufficient_evidence { opacity: .8; }
+.timeline { display: grid; gap: .75rem; }
+.attempt { display: flex; flex-direction: column; border-left: 2px solid #52697d; padding: .5rem 1rem; gap: .3rem; }
+.attempt pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.finding h4 { margin-top: 1.1rem; }
+.observed-panel label { display: block; margin: .7rem 0; }
+.observed-panel input, .observed-panel textarea { width: 100%; }
+.runtime-metrics dl {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;}
+.runtime-metrics dl>div {border:1px solid var(--border);padding:1rem;border-radius:10px;}
+.runtime-metrics dt {font-size:.82rem;opacity:.8;}
+.runtime-metrics dd {margin:.5rem 0 0;font-size:1.4rem;font-weight:700;}
+.runtime-metrics table {width:100%;border-collapse:collapse;}
+.runtime-metrics th,.runtime-metrics td {padding:.6rem;text-align:left;border-bottom:1px solid var(--border);}
+.observed-panel pre {overflow:auto;max-height:20rem;}
+.observed-panel .notice button {margin-right:.5rem;}
