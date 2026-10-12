@@ -60,7 +60,7 @@ def main() -> None:
             responses = [
                 client.post(
                     "/api/v1/analyze", json={"file_content": SOURCE, "file_path": path.name}
-                ),
+                ), 
                 client.post("/api/v1/analyze/file", files={"file": (path.name, SOURCE)}),
                 client.post(
                     "/api/v1/analyze/directory",
