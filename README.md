@@ -23,6 +23,10 @@ pass-on-retry is not proof of its cause. `no_known_risk` does not mean stable.
 - Killable Linux analysis processes with CPU, address-space, wall-time and output limits.
 - Selective mock/control-flow, HTTP client and resource-lifetime analysis; conservative impact hints.
 
+## Demo video
+
+[Watch the FlakyDetector demo on YouTube](https://youtu.be/xh7w1dCKVEU)
+
 [Capabilities and unfinished boundaries](docs/CAPABILITY_MATRIX.md) ·
 [Migration](docs/MIGRATION_0.2.2.md) · [Security](SECURITY.md) ·
 [SARIF and baseline](docs/SARIF_ACTION.md) · [Monitors](docs/MONITORS.md)
